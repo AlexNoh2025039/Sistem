@@ -1,0 +1,41 @@
+
+# Dependencias
+node_modules/
+
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Archivos generados por TypeScript
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Cobertura de pruebas
+coverage/
+
+# Herramientas y editores
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Archivos temporales
+tmp/
+temp/
+
+# Vite
+frontend/dist/
+frontend/.vite/
+
+# Archivos locales de configuración
+*.local

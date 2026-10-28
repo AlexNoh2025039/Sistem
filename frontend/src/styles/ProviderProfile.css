@@ -1,0 +1,145 @@
+
+.provider-profile-page {
+  min-height: 100vh;
+  padding: 48px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #f3f5f9;
+  color: #172033;
+  font-family: Arial, sans-serif;
+}
+
+.provider-profile-card {
+  width: 100%;
+  max-width: 720px;
+  padding: 36px;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid #e3e8f0;
+  border-radius: 18px;
+  box-shadow: 0 12px 35px rgba(20, 35, 60, 0.08);
+}
+
+.provider-profile-header {
+  margin-bottom: 28px;
+}
+
+.provider-profile-eyebrow {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: #5267d8;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.provider-profile-header h1 {
+  margin: 0 0 12px;
+  font-size: 30px;
+}
+
+.provider-profile-header p {
+  margin: 0;
+  color: #647084;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.provider-profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.provider-profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.provider-profile-field label {
+  color: #283247;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.provider-profile-field input,
+.provider-profile-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 14px;
+  border: 1px solid #d6dce7;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  font-size: 14px;
+}
+
+.provider-profile-field input:focus,
+.provider-profile-field textarea:focus {
+  outline: none;
+  border-color: #5267d8;
+  box-shadow: 0 0 0 3px rgba(82, 103, 216, 0.13);
+}
+
+.provider-profile-field textarea {
+  resize: vertical;
+}
+
+.provider-profile-submit {
+  width: 100%;
+  padding: 14px 18px;
+  border: none;
+  border-radius: 9px;
+  background: #5267d8;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.provider-profile-submit:hover:not(:disabled) {
+  background: #4054c1;
+}
+
+.provider-profile-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.provider-profile-message,
+.provider-profile-error {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.provider-profile-message {
+  border: 1px solid #b9e5ca;
+  background: #edf9f1;
+  color: #21663a;
+}
+
+.provider-profile-error {
+  border: 1px solid #f0c1c1;
+  background: #fff0f0;
+  color: #a32929;
+}
+
+@media (max-width: 600px) {
+  .provider-profile-page {
+    padding: 24px 14px;
+  }
+
+  .provider-profile-card {
+    padding: 24px 18px;
+  }
+
+  .provider-profile-header h1 {
+    font-size: 25px;
+  }
+}
