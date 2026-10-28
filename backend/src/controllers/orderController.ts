@@ -2,6 +2,8 @@
 import { Request, Response } from 'express';
 import pool from '../db/connection.js';
 
+
+//esta funcion toma los datos de posgres y los devuelve en formato json
 export const getCart = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -16,6 +18,7 @@ export const getCart = async (req: Request, res: Response) => {
       [req.user!.id],
     );
 
+    // Si no hay productos en el carrito, devolvemos un array vacío
     return res.json(result.rows);
   } catch (error) {
     console.error('Error retrieving cart:', error);
@@ -23,10 +26,12 @@ export const getCart = async (req: Request, res: Response) => {
   }
 };
 
+//esta funcion agrega un producto al carrito del usuario
 export const addCartItem = async (req: Request, res: Response) => {
   const productId = Number(req.body.producto_id);
   const quantity = Number(req.body.cantidad);
 
+  //esto lo que hace es que el precio no sea texto osea un string y que sea un numero entero 
   if (
     !Number.isInteger(productId) ||
     productId <= 0 ||
@@ -38,23 +43,38 @@ export const addCartItem = async (req: Request, res: Response) => {
     });
   }
 
+  // este tiene una promesa que lo que espera es que se conecte a la base de datos y
+  //  si no se conecta pues lanza otro error y si hay un error entonces begin manda un rollback
+  //y si no simplemente se crea otro producto
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
+
+// esta promesa lo que hace es que si el producto no existe o no es
+// esta activo pues manda un error y si no pues lo va a agregar al carrito para ver q pasa
     const product = await client.query(
       `SELECT id, existencias FROM productos
        WHERE id = $1 AND activo = TRUE
        FOR UPDATE`,
       [productId],
     );
+  
 
+    //si ya no hay un producto simplemente muestra que no hay actuamente 
+    // o que no estan disponib
+
+    //esta promesa lo que hace es que al agregar un producto 
+    // al carrito y si ya hay uno de ese producto solo lo va a actualizar 
+    // y si no pues lo va a agregar al carrito
     if (product.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Producto no disponible.' });
     }
 
+    // esto lo que hace es que si el producto ya esta 
+    // entonces lo va a actualizar y si no pues lo va a agregar al carrito
     const cartResult = await client.query(
       `INSERT INTO carritos (usuario_id)
        VALUES ($1)
@@ -64,8 +84,13 @@ export const addCartItem = async (req: Request, res: Response) => {
       [req.user!.id],
     );
 
+    // este es el que se encarga de que
+    // si el producto esta en el carrito lo actualice y 
+    // lo agregue al carrito y si no pos no (osea si le da a crear en ves de editar) 
     const cartId = cartResult.rows[0].id;
 
+
+    // este es el encargado de poder actualizar lo solicitado y si no pues lo agrega al carrito
     const itemResult = await client.query(
       `INSERT INTO carrito_items (carrito_id, producto_id, cantidad)
        VALUES ($1, $2, $3)
@@ -75,6 +100,7 @@ export const addCartItem = async (req: Request, res: Response) => {
       [cartId, productId, quantity],
     );
 
+    
     if (itemResult.rows[0].cantidad > product.rows[0].existencias) {
       await client.query('ROLLBACK');
       return res.status(409).json({

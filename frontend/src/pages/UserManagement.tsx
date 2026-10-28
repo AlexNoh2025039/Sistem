@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
@@ -9,8 +10,6 @@ import {
 import type { ManagedUser, UserRole } from '../services/api'
 import '../styles/Users.css'
 
-type User = ManagedUser
-
 const roleLabels: Record<UserRole, string> = {
   admin: 'Administrador',
   user: 'Usuario',
@@ -18,10 +17,8 @@ const roleLabels: Record<UserRole, string> = {
 }
 
 function UserManagement() {
-  const [users, setUsers] = useState<User[]>([])
-  const [selectedRoles, setSelectedRoles] = useState<
-    Record<number, UserRole>
-  >({})
+  const [users, setUsers] = useState<ManagedUser[]>([])
+  const [selectedRoles, setSelectedRoles] = useState<Record<number, UserRole>>({})
   const [savingRoles, setSavingRoles] = useState<number[]>([])
   const [deletingUsers, setDeletingUsers] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,7 +31,7 @@ function UserManagement() {
 
   const currentUser = JSON.parse(
     localStorage.getItem('user') || 'null',
-  ) as User | null
+  ) as ManagedUser | null
 
   const loadUsers = useCallback(async () => {
     const token = localStorage.getItem('token')
@@ -48,19 +45,13 @@ function UserManagement() {
     try {
       setError('')
       const data = await getUsers(token)
-
       setUsers(data)
-
       setSelectedRoles(
-        Object.fromEntries(
-          data.map((user) => [user.id, user.role]),
-        ) as Record<number, UserRole>,
+        Object.fromEntries(data.map((user) => [user.id, user.role])),
       )
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Ocurrió un error al cargar usuarios',
+        err instanceof Error ? err.message : 'Error al cargar usuarios.',
       )
     } finally {
       setLoading(false)
@@ -73,7 +64,6 @@ function UserManagement() {
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-
     const token = localStorage.getItem('token')
 
     if (!token) {
@@ -86,39 +76,23 @@ function UserManagement() {
     setCreating(true)
 
     try {
-      await createAdminUser(newUsername.trim(), newPassword, token)
+      const username = newUsername.trim()
+      await createAdminUser(username, newPassword, token)
 
-      setMessage(
-        `El usuario "${newUsername.trim()}" fue creado correctamente.`,
-      )
+      setMessage(`El usuario "${username}" fue creado correctamente.`)
       setNewUsername('')
       setNewPassword('')
       setShowForm(false)
-
       setLoading(true)
       await loadUsers()
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Ocurrió un error al crear el usuario',
-      )
+      setError(err instanceof Error ? err.message : 'Error al crear usuario.')
     } finally {
       setCreating(false)
     }
   }
 
-  const handleRoleChange = (userId: number, role: UserRole) => {
-    setSelectedRoles((previous) => ({
-      ...previous,
-      [userId]: role,
-    }))
-
-    setError('')
-    setMessage('')
-  }
-
-  const handleSaveRole = async (user: User) => {
+  const handleSaveRole = async (user: ManagedUser) => {
     const token = localStorage.getItem('token')
     const newRole = selectedRoles[user.id]
 
@@ -140,48 +114,35 @@ function UserManagement() {
       const result = await changeUserRole(user.id, newRole, token)
 
       setUsers((previous) =>
-        previous.map((item) =>
-          item.id === user.id ? result.user : item,
-        ),
+        previous.map((item) => item.id === user.id ? result.user : item),
       )
-
       setSelectedRoles((previous) => ({
         ...previous,
         [user.id]: result.user.role,
       }))
-
       setMessage(
         `El rol de "${user.username}" se actualizó a ${roleLabels[result.user.role]}.`,
       )
 
       if (user.id === currentUser?.id) {
         const storedUser = localStorage.getItem('user')
-
         if (storedUser) {
-          const updatedCurrentUser = JSON.parse(storedUser)
-          updatedCurrentUser.role = result.user.role
-          localStorage.setItem('user', JSON.stringify(updatedCurrentUser))
+          const updatedUser = JSON.parse(storedUser)
+          updatedUser.role = result.user.role
+          localStorage.setItem('user', JSON.stringify(updatedUser))
         }
       }
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'No se pudo actualizar el rol',
-      )
+      setError(err instanceof Error ? err.message : 'No se pudo cambiar el rol.')
     } finally {
-      setSavingRoles((previous) =>
-        previous.filter((id) => id !== user.id),
-      )
+      setSavingRoles((previous) => previous.filter((id) => id !== user.id))
     }
   }
 
-  const handleDelete = async (user: User) => {
-    const confirmed = window.confirm(
-      `¿Seguro que querés eliminar al usuario "${user.username}"?`,
-    )
-
-    if (!confirmed) return
+  const handleDelete = async (user: ManagedUser) => {
+    if (!window.confirm(`¿Seguro que querés eliminar al usuario "${user.username}"?`)) {
+      return
+    }
 
     const token = localStorage.getItem('token')
 
@@ -196,10 +157,7 @@ function UserManagement() {
 
     try {
       await deleteUser(user.id, token)
-
-      setUsers((previous) =>
-        previous.filter((item) => item.id !== user.id),
-      )
+      setUsers((previous) => previous.filter((item) => item.id !== user.id))
 
       setSelectedRoles((previous) => {
         const updated = { ...previous }
@@ -209,15 +167,9 @@ function UserManagement() {
 
       setMessage(`El usuario "${user.username}" fue eliminado.`)
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Ocurrió un error al eliminar el usuario',
-      )
+      setError(err instanceof Error ? err.message : 'Error al eliminar usuario.')
     } finally {
-      setDeletingUsers((previous) =>
-        previous.filter((id) => id !== user.id),
-      )
+      setDeletingUsers((previous) => previous.filter((id) => id !== user.id))
     }
   }
 
@@ -239,16 +191,12 @@ function UserManagement() {
           <div className="users-avatar">
             {currentUser?.username?.charAt(0).toUpperCase() ?? 'U'}
           </div>
-
           <div className="users-account-info">
             <strong>{currentUser?.username ?? 'Usuario'}</strong>
             <span>
-              {currentUser?.role
-                ? roleLabels[currentUser.role]
-                : 'Usuario'}
+              {currentUser?.role ? roleLabels[currentUser.role] : 'Usuario'}
             </span>
           </div>
-
           <button className="users-logout" onClick={handleLogout}>
             Cerrar sesión
           </button>
@@ -273,7 +221,6 @@ function UserManagement() {
             >
               Actualizar tabla
             </button>
-
             <button
               className="users-create-button"
               onClick={() => {
@@ -336,39 +283,8 @@ function UserManagement() {
           </section>
         )}
 
-        <div className="users-stats">
-          <div className="users-stat-card">
-            <span>Total de usuarios</span>
-            <strong>{users.length}</strong>
-          </div>
-
-          <div className="users-stat-card">
-            <span>Administradores</span>
-            <strong>
-              {users.filter((user) => user.role === 'admin').length}
-            </strong>
-          </div>
-
-          <div className="users-stat-card">
-            <span>Usuarios estándar</span>
-            <strong>
-              {users.filter((user) => user.role === 'user').length}
-            </strong>
-          </div>
-
-          <div className="users-stat-card">
-            <span>Proveedores</span>
-            <strong>
-              {users.filter((user) => user.role === 'provider').length}
-            </strong>
-          </div>
-        </div>
-
         {error && <p className="users-alert users-alert-error">{error}</p>}
-
-        {message && (
-          <p className="users-alert users-alert-success">{message}</p>
-        )}
+        {message && <p className="users-alert users-alert-success">{message}</p>}
 
         <div className="users-table-card">
           <div className="users-table-header">
@@ -400,8 +316,7 @@ function UserManagement() {
                     </tr>
                   ) : (
                     users.map((user) => {
-                      const selectedRole =
-                        selectedRoles[user.id] ?? user.role
+                      const selectedRole = selectedRoles[user.id] ?? user.role
                       const isSaving = savingRoles.includes(user.id)
                       const isDeleting = deletingUsers.includes(user.id)
                       const isCurrentUser = user.id === currentUser?.id
@@ -409,27 +324,20 @@ function UserManagement() {
                       return (
                         <tr key={user.id}>
                           <td>#{user.id}</td>
-
-                          <td className="users-username">
-                            {user.username}
-                          </td>
-
+                          <td className="users-username">{user.username}</td>
                           <td>
-                            <span
-                              className={`users-role users-role-${user.role}`}
-                            >
+                            <span className={`users-role users-role-${user.role}`}>
                               {roleLabels[user.role]}
                             </span>
                           </td>
-
                           <td>
                             <select
                               value={selectedRole}
                               onChange={(event) =>
-                                handleRoleChange(
-                                  user.id,
-                                  event.target.value as UserRole,
-                                )
+                                setSelectedRoles((previous) => ({
+                                  ...previous,
+                                  [user.id]: event.target.value as UserRole,
+                                }))
                               }
                               disabled={isSaving || isCurrentUser}
                               aria-label={`Cambiar rol de ${user.username}`}
@@ -443,9 +351,7 @@ function UserManagement() {
                               className="users-refresh"
                               onClick={() => void handleSaveRole(user)}
                               disabled={
-                                isSaving ||
-                                isCurrentUser ||
-                                selectedRole === user.role
+                                isSaving || isCurrentUser || selectedRole === user.role
                               }
                               title={
                                 isCurrentUser
@@ -456,7 +362,6 @@ function UserManagement() {
                               {isSaving ? 'Guardando...' : 'Guardar rol'}
                             </button>
                           </td>
-
                           <td>
                             <button
                               className="users-delete"

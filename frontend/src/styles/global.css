@@ -56,7 +56,9 @@
   --transition-normal: 240ms ease;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 

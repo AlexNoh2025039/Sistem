@@ -1,9 +1,9 @@
 
 BEGIN;
 
--- =========================================
+ 
 -- 1. ELIMINAR TABLAS ANTERIORES
--- =========================================
+ 
 
 DROP TABLE IF EXISTS pedido_items CASCADE;
 DROP TABLE IF EXISTS pedidos CASCADE;
@@ -14,18 +14,14 @@ DROP TABLE IF EXISTS proveedores CASCADE;
 DROP TABLE IF EXISTS usuarios CASCADE;
 
 
--- =========================================
+ 
 -- 2. USUARIOS
--- =========================================
+ 
 
 CREATE TABLE usuarios (
     id SERIAL PRIMARY KEY,
     username VARCHAR(120) NOT NULL UNIQUE,
-
-    -- El registro actual solo solicita usuario y contraseña.
-    -- Por eso correo puede quedar vacío.
     correo VARCHAR(150) UNIQUE,
-
     password VARCHAR(255) NOT NULL,
 
     rol VARCHAR(30) NOT NULL DEFAULT 'user'
@@ -35,20 +31,20 @@ CREATE TABLE usuarios (
         CHECK (saldo >= 0),
 
     foto_perfil TEXT,
-
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 
--- =========================================
--- 3. PROVEEDORES / VENDEDORES
--- =========================================
+ 
+-- 3. PROVEEDORES
+-- Al eliminar al usuario, se elimina su perfil.
+ 
 
 CREATE TABLE proveedores (
     id SERIAL PRIMARY KEY,
 
     usuario_id INTEGER NOT NULL UNIQUE
-        REFERENCES usuarios(id) ON DELETE RESTRICT,
+        REFERENCES usuarios(id) ON DELETE CASCADE,
 
     nombre_empresa VARCHAR(120),
     descripcion TEXT,
@@ -60,15 +56,14 @@ CREATE TABLE proveedores (
 );
 
 
--- =========================================
--- 4. PRODUCTOS
--- =========================================
-
+ -- 4. PRODUCTOS
+-- Al eliminar al proveedor, se eliminan sus productos.
+ 
 CREATE TABLE productos (
     id SERIAL PRIMARY KEY,
 
     proveedor_id INTEGER NOT NULL
-        REFERENCES proveedores(id) ON DELETE RESTRICT,
+        REFERENCES proveedores(id) ON DELETE CASCADE,
 
     nombre VARCHAR(150) NOT NULL,
     descripcion TEXT,
@@ -90,24 +85,23 @@ CREATE TABLE productos (
 );
 
 
--- =========================================
+ 
 -- 5. CARRITOS
--- =========================================
-
+-- Al eliminar al usuario, se elimina su carrito.
+ 
 CREATE TABLE carritos (
     id SERIAL PRIMARY KEY,
 
     usuario_id INTEGER NOT NULL UNIQUE
-        REFERENCES usuarios(id) ON DELETE RESTRICT,
+        REFERENCES usuarios(id) ON DELETE CASCADE,
 
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 
--- =========================================
--- 6. PRODUCTOS DEL CARRITO
--- =========================================
-
+ -- 6. PRODUCTOS DEL CARRITO
+-- Se eliminan si desaparece el carrito o el producto.
+ 
 CREATE TABLE carrito_items (
     id SERIAL PRIMARY KEY,
 
@@ -115,7 +109,7 @@ CREATE TABLE carrito_items (
         REFERENCES carritos(id) ON DELETE CASCADE,
 
     producto_id INTEGER NOT NULL
-        REFERENCES productos(id) ON DELETE RESTRICT,
+        REFERENCES productos(id) ON DELETE CASCADE,
 
     cantidad INTEGER NOT NULL
         CHECK (cantidad > 0),
@@ -124,15 +118,14 @@ CREATE TABLE carrito_items (
 );
 
 
--- =========================================
--- 7. PEDIDOS
--- =========================================
-
+ -- 7. PEDIDOS
+-- El historial permanece aunque se elimine al usuario.
+ 
 CREATE TABLE pedidos (
     id SERIAL PRIMARY KEY,
 
-    usuario_id INTEGER NOT NULL
-        REFERENCES usuarios(id) ON DELETE RESTRICT,
+    usuario_id INTEGER
+        REFERENCES usuarios(id) ON DELETE SET NULL,
 
     estado VARCHAR(20) NOT NULL DEFAULT 'confirmado'
         CHECK (
@@ -151,10 +144,9 @@ CREATE TABLE pedidos (
 );
 
 
--- =========================================
--- 8. DETALLES DE LOS PEDIDOS
--- =========================================
-
+ -- 8. DETALLES DE PEDIDOS
+-- Se conserva el nombre, precio y cantidad históricos.
+ 
 CREATE TABLE pedido_items (
     id SERIAL PRIMARY KEY,
 
@@ -177,10 +169,8 @@ CREATE TABLE pedido_items (
 );
 
 
--- =========================================
--- 9. ÍNDICES
--- =========================================
-
+ -- 9. ÍNDICES
+ 
 CREATE INDEX idx_productos_proveedor
     ON productos(proveedor_id);
 
@@ -194,17 +184,11 @@ CREATE INDEX idx_pedido_items_pedido
     ON pedido_items(pedido_id);
 
 
--- =========================================
--- 10. CONFIRMAR CAMBIOS
--- =========================================
-
 COMMIT;
 
 
--- =========================================
--- 11. VERIFICAR TABLAS
--- =========================================
-
+ -- 10. VERIFICAR TABLAS
+ 
 SELECT table_name
 FROM information_schema.tables
 WHERE table_schema = 'public'
@@ -220,12 +204,22 @@ WHERE table_schema = 'public'
 ORDER BY table_name;
 
 
--- =========================================
--- 12. VERIFICAR COLUMNAS DE USUARIOS
--- =========================================
-
-SELECT column_name, is_nullable, column_default
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name = 'usuarios'
-ORDER BY ordinal_position;
+ 
+SELECT
+    tc.table_name,
+    kcu.column_name,
+    ccu.table_name AS tabla_referenciada,
+    rc.delete_rule
+FROM information_schema.table_constraints AS tc
+JOIN information_schema.key_column_usage AS kcu
+    ON tc.constraint_name = kcu.constraint_name
+   AND tc.constraint_schema = kcu.constraint_schema
+JOIN information_schema.constraint_column_usage AS ccu
+    ON ccu.constraint_name = tc.constraint_name
+   AND ccu.constraint_schema = tc.constraint_schema
+JOIN information_schema.referential_constraints AS rc
+    ON rc.constraint_name = tc.constraint_name
+   AND rc.constraint_schema = tc.constraint_schema
+WHERE tc.constraint_type = 'FOREIGN KEY'
+  AND tc.constraint_schema = 'public'
+ORDER BY tc.table_name, kcu.column_name;
