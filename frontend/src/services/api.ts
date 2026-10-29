@@ -274,8 +274,6 @@ export async function updateProfile(
     { message: string; user?: ProfileUser } & Partial<ProfileUser>
   >(response)
 
-  // Acepta una respuesta que devuelva el usuario dentro de "user"
-  // o directamente en el objeto de respuesta.
   const updatedUser = data.user ?? data
 
   if (
@@ -380,7 +378,10 @@ export async function getProductById(id: number): Promise<Product> {
   return readResponse<Product>(response)
 }
 
-function buildProductFormData(product: ProductInput, image?: File | null): FormData {
+function buildProductFormData(
+  product: ProductInput,
+  image?: File | null,
+): FormData {
   const formData = new FormData()
 
   formData.append('nombre', product.nombre)
@@ -501,4 +502,139 @@ export async function getMyOrders(token: string): Promise<Order[]> {
   })
 
   return readResponse<Order[]>(response)
+}
+
+// PERMISOS
+
+export type PermissionKey =
+  | 'cart.manage'
+  | 'orders.create'
+  | 'orders.view'
+  | 'permissions.manage'
+  | 'products.deactivate'
+  | 'products.edit'
+  | 'products.publish'
+  | 'products.view'
+  | 'provider.profile.manage'
+  | 'users.change_role'
+  | 'users.create'
+  | 'users.delete'
+  | 'users.edit'
+  | 'users.view'
+
+export interface RolePermission {
+  role: UserRole
+  permission_key: PermissionKey
+  allowed: boolean
+}
+
+export interface UserPermissionOverride {
+  user_id: number
+  permission_key: PermissionKey
+  allowed: boolean
+  creado_en?: string
+  actualizado_en?: string
+}
+
+export type EffectivePermissions = Record<PermissionKey, boolean>
+
+export interface MyEffectivePermissionsResponse {
+  userId: number
+  role: UserRole
+  permissions: EffectivePermissions
+}
+
+export async function getMyEffectivePermissions(
+  token: string,
+): Promise<MyEffectivePermissionsResponse> {
+  const response = await fetch(`${API_URL}/permissions/me`, {
+    headers: authHeaders(token),
+  })
+
+  return readResponse<MyEffectivePermissionsResponse>(response)
+}
+
+export async function getRolePermissions(
+  token: string,
+): Promise<RolePermission[]> {
+  const response = await fetch(`${API_URL}/admin/permissions`, {
+    headers: authHeaders(token),
+  })
+
+  const data = await readResponse<
+    RolePermission[] | { permissions: RolePermission[] }
+  >(response)
+
+  return Array.isArray(data) ? data : data.permissions
+}
+
+export async function updateRolePermission(
+  role: UserRole,
+  permissionKey: PermissionKey,
+  allowed: boolean,
+  token: string,
+): Promise<unknown> {
+  const response = await fetch(`${API_URL}/admin/permissions`, {
+    method: 'PATCH',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ role, permissionKey, allowed }),
+  })
+
+  return readResponse<unknown>(response)
+}
+
+export async function getUserPermissionOverrides(
+  userId: number,
+  token: string,
+): Promise<UserPermissionOverride[]> {
+  const response = await fetch(
+    `${API_URL}/admin/users/${userId}/permissions`,
+    { headers: authHeaders(token) },
+  )
+
+  const data = await readResponse<
+    UserPermissionOverride[] | { overrides: UserPermissionOverride[] }
+  >(response)
+
+  return Array.isArray(data) ? data : data.overrides
+}
+
+export async function updateUserPermissionOverride(
+  userId: number,
+  permissionKey: PermissionKey,
+  allowed: boolean,
+  token: string,
+): Promise<unknown> {
+  const response = await fetch(
+    `${API_URL}/admin/users/${userId}/permissions`,
+    {
+      method: 'PUT',
+      headers: {
+        ...authHeaders(token),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ permissionKey, allowed }),
+    },
+  )
+
+  return readResponse<unknown>(response)
+}
+
+export async function deleteUserPermissionOverride(
+  userId: number,
+  permissionKey: PermissionKey,
+  token: string,
+): Promise<{ message: string }> {
+  const response = await fetch(
+    `${API_URL}/admin/users/${userId}/permissions/${encodeURIComponent(permissionKey)}`,
+    {
+      method: 'DELETE',
+      headers: authHeaders(token),
+    },
+  )
+
+  return readResponse<{ message: string }>(response)
 }

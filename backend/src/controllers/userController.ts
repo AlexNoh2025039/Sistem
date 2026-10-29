@@ -10,20 +10,33 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET is not configured in the .env file')
 }
 
-export const registerUser = async (req: Request, res: Response) => {
+const validRoles = ['admin', 'user', 'provider'] as const
+type UserRole = (typeof validRoles)[number]
+
+const isDuplicateKeyError = (error: unknown): boolean => {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    error.code === '23505'
+  )
+}
+
+const registerAccount = async (req: Request, res: Response) => {
   const { username, password } = req.body ?? {}
 
   if (
     typeof username !== 'string' ||
     typeof password !== 'string' ||
-    username.trim().length < 1 ||
+    username.trim().length < 3 ||
     username.trim().length > 50 ||
     password.length < 8 ||
     Buffer.byteLength(password, 'utf8') > 72
   ) {
     return res.status(400).json({
       error:
-        'El usuario debe tener entre 1 y 50 caracteres y la contraseña al menos 8 caracteres, con un máximo de 72 bytes.',
+        'El usuario debe tener entre 3 y 50 caracteres y la contraseña al menos 8 caracteres, con un máximo de 72 bytes.',
     })
   }
 
@@ -42,12 +55,7 @@ export const registerUser = async (req: Request, res: Response) => {
       user: result.rows[0],
     })
   } catch (error: unknown) {
-    if (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      error.code === '23505'
-    ) {
+    if (isDuplicateKeyError(error)) {
       return res.status(409).json({
         error: 'Ese nombre de usuario ya existe.',
       })
@@ -61,6 +69,17 @@ export const registerUser = async (req: Request, res: Response) => {
   }
 }
 
+export const registerUser = async (req: Request, res: Response) => {
+  return registerAccount(req, res)
+}
+
+export const createUserByAdmin = async (
+  req: Request,
+  res: Response,
+) => {
+  return registerAccount(req, res)
+}
+
 export const loginUser = async (req: Request, res: Response) => {
   const { username, password } = req.body ?? {}
 
@@ -71,7 +90,7 @@ export const loginUser = async (req: Request, res: Response) => {
     !password
   ) {
     return res.status(400).json({
-      error: 'Ingresa un nombre de usuario y una contraseña válidos.',
+      error: 'Ingresá tu usuario y contraseña.',
     })
   }
 
@@ -79,7 +98,8 @@ export const loginUser = async (req: Request, res: Response) => {
     const result = await pool.query(
       `SELECT id, username, password, rol, saldo
        FROM usuarios
-       WHERE username = $1`,
+       WHERE username = $1
+       LIMIT 1`,
       [username.trim()],
     )
 
@@ -90,9 +110,12 @@ export const loginUser = async (req: Request, res: Response) => {
     }
 
     const user = result.rows[0]
-    const passwordValid = await bcrypt.compare(password, user.password)
+    const passwordMatches = await bcrypt.compare(
+      password,
+      user.password,
+    )
 
-    if (!passwordValid) {
+    if (!passwordMatches) {
       return res.status(401).json({
         error: 'Usuario o contraseña incorrectos.',
       })
@@ -104,11 +127,12 @@ export const loginUser = async (req: Request, res: Response) => {
         username: user.username,
         rol: user.rol,
       },
-      JWT_SECRET!,
+      JWT_SECRET,
       { expiresIn: '1h' },
     )
 
-    return res.json({
+    return res.status(200).json({
+      message: 'Inicio de sesión exitoso.',
       token,
       user: {
         id: user.id,
@@ -121,7 +145,7 @@ export const loginUser = async (req: Request, res: Response) => {
     console.error('Error logging in:', error)
 
     return res.status(500).json({
-      error: 'Error interno del servidor.',
+      error: 'No se pudo iniciar sesión.',
     })
   }
 }
@@ -134,76 +158,116 @@ export const listUsers = async (_req: Request, res: Response) => {
        ORDER BY id`,
     )
 
-    return res.json(result.rows)
+    return res.status(200).json(result.rows)
   } catch (error) {
     console.error('Error listing users:', error)
 
     return res.status(500).json({
-      error: 'No se pudieron obtener los usuarios.',
+      error: 'No se pudieron cargar los usuarios.',
     })
   }
 }
 
 export const deleteUser = async (req: Request, res: Response) => {
-  const id = Number(req.params.id)
+  const userId = Number(req.params.id)
 
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
     return res.status(400).json({
       error: 'El ID del usuario no es válido.',
     })
   }
 
-  if (req.user?.id === id) {
-    return res.status(403).json({
-      error: 'No puedes eliminar tu propia cuenta.',
+  if (userId === req.user?.id) {
+    return res.status(400).json({
+      error: 'No podés eliminar tu propia cuenta.',
     })
   }
 
+  const client = await pool.connect()
+
   try {
-    const result = await pool.query(
-      'DELETE FROM usuarios WHERE id = $1 RETURNING id',
-      [id],
+    await client.query('BEGIN')
+    await client.query(
+      'SELECT pg_advisory_xact_lock($1, $2)',
+      [726194, 1],
     )
 
-    if (result.rowCount === 0) {
+    const targetResult = await client.query(
+      `SELECT id, rol
+       FROM usuarios
+       WHERE id = $1
+       FOR UPDATE`,
+      [userId],
+    )
+
+    if (targetResult.rows.length === 0) {
+      await client.query('ROLLBACK')
+
       return res.status(404).json({
-        error: 'Usuario no encontrado.',
+        error: 'El usuario no existe.',
       })
     }
 
-    return res.json({
+    if (targetResult.rows[0].rol === 'admin') {
+      const adminResult = await client.query(
+        `SELECT COUNT(*)::int AS total
+         FROM usuarios
+         WHERE rol = 'admin'`,
+      )
+
+      if (adminResult.rows[0].total <= 1) {
+        await client.query('ROLLBACK')
+
+        return res.status(409).json({
+          error: 'No se puede eliminar al último administrador.',
+        })
+      }
+    }
+
+    await client.query(
+      'DELETE FROM usuarios WHERE id = $1',
+      [userId],
+    )
+
+    await client.query('COMMIT')
+
+    return res.status(200).json({
       message: 'Usuario eliminado correctamente.',
     })
   } catch (error) {
+    await client.query('ROLLBACK')
     console.error('Error deleting user:', error)
 
-    return res.status(409).json({
-      error:
-        'No se pudo eliminar el usuario. Puede tener perfiles, pedidos u otros registros asociados.',
+    return res.status(500).json({
+      error: 'No se pudo eliminar el usuario.',
     })
+  } finally {
+    client.release()
   }
 }
 
-export const changePassword = async (req: Request, res: Response) => {
+export const changePassword = async (
+  req: Request,
+  res: Response,
+) => {
   const { currentPassword, newPassword } = req.body ?? {}
   const userId = req.user?.id
 
   if (!userId) {
     return res.status(401).json({
-      error: 'Debes iniciar sesión.',
+      error: 'No hay una sesión activa.',
     })
   }
 
   if (
     typeof currentPassword !== 'string' ||
     typeof newPassword !== 'string' ||
-    currentPassword.length === 0 ||
     newPassword.length < 8 ||
     Buffer.byteLength(newPassword, 'utf8') > 72
   ) {
     return res.status(400).json({
       error:
-        'La nueva contraseña debe tener al menos 8 caracteres y no superar los 72 bytes.',
+        'La nueva contraseña debe tener al menos 8 caracteres y máximo 72 bytes.',
     })
   }
 
@@ -221,16 +285,16 @@ export const changePassword = async (req: Request, res: Response) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({
-        error: 'Usuario no encontrado.',
+        error: 'El usuario no existe.',
       })
     }
 
-    const valid = await bcrypt.compare(
+    const matches = await bcrypt.compare(
       currentPassword,
       result.rows[0].password,
     )
 
-    if (!valid) {
+    if (!matches) {
       return res.status(400).json({
         error: 'La contraseña actual es incorrecta.',
       })
@@ -243,38 +307,44 @@ export const changePassword = async (req: Request, res: Response) => {
       [passwordHash, userId],
     )
 
-    return res.json({
+    return res.status(200).json({
       message: 'Contraseña actualizada correctamente.',
     })
   } catch (error) {
     console.error('Error changing password:', error)
 
     return res.status(500).json({
-      error: 'No se pudo actualizar la contraseña.',
+      error: 'No se pudo cambiar la contraseña.',
     })
   }
 }
 
-export const changeUserRole = async (req: Request, res: Response) => {
-  const id = Number(req.params.id)
+export const changeUserRole = async (
+  req: Request,
+  res: Response,
+) => {
+  const userId = Number(req.params.id)
   const { role } = req.body ?? {}
-  const validRoles = ['admin', 'user', 'provider']
+  const currentUserId = req.user?.id
 
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
     return res.status(400).json({
       error: 'El ID del usuario no es válido.',
     })
   }
 
-  if (typeof role !== 'string' || !validRoles.includes(role)) {
+  if (userId === currentUserId) {
     return res.status(400).json({
-      error: 'El rol debe ser admin, user o provider.',
+      error: 'No podés cambiar tu propio rol.',
     })
   }
 
-  if (req.user?.id === id) {
-    return res.status(403).json({
-      error: 'No puedes cambiar tu propio rol.',
+  if (
+    typeof role !== 'string' ||
+    !validRoles.includes(role as UserRole)
+  ) {
+    return res.status(400).json({
+      error: 'El rol indicado no es válido.',
     })
   }
 
@@ -282,47 +352,49 @@ export const changeUserRole = async (req: Request, res: Response) => {
 
   try {
     await client.query('BEGIN')
+    await client.query(
+      'SELECT pg_advisory_xact_lock($1, $2)',
+      [726194, 1],
+    )
 
-    const target = await client.query(
+    const targetResult = await client.query(
       `SELECT id, username, rol
        FROM usuarios
        WHERE id = $1
        FOR UPDATE`,
-      [id],
+      [userId],
     )
 
-    if (target.rows.length === 0) {
+    if (targetResult.rows.length === 0) {
       await client.query('ROLLBACK')
 
       return res.status(404).json({
-        error: 'Usuario no encontrado.',
+        error: 'El usuario no existe.',
       })
     }
 
-    const targetUser = target.rows[0]
+    const target = targetResult.rows[0]
 
-    if (targetUser.rol === 'admin' && role !== 'admin') {
-      const admins = await client.query(
+    if (target.rol === 'admin' && role !== 'admin') {
+      const adminResult = await client.query(
         `SELECT COUNT(*)::int AS total
          FROM usuarios
          WHERE rol = 'admin'`,
       )
 
-      if (admins.rows[0].total <= 1) {
+      if (adminResult.rows[0].total <= 1) {
         await client.query('ROLLBACK')
 
         return res.status(409).json({
-          error: 'No se puede quitar el rol al único administrador.',
+          error:
+            'No se puede cambiar el rol del último administrador.',
         })
       }
     }
 
-    const result = await client.query(
-      `UPDATE usuarios
-       SET rol = $1
-       WHERE id = $2
-       RETURNING id, username, rol AS role, saldo`,
-      [role, id],
+    await client.query(
+      'UPDATE usuarios SET rol = $1 WHERE id = $2',
+      [role, userId],
     )
 
     if (role === 'provider') {
@@ -330,23 +402,26 @@ export const changeUserRole = async (req: Request, res: Response) => {
         `INSERT INTO proveedores (usuario_id)
          VALUES ($1)
          ON CONFLICT (usuario_id) DO NOTHING`,
-        [targetUser.id],
+        [userId],
       )
     }
 
     await client.query('COMMIT')
 
-    return res.json({
+    return res.status(200).json({
       message: 'Rol actualizado correctamente.',
-      user: result.rows[0],
+      user: {
+        id: target.id,
+        username: target.username,
+        role,
+      },
     })
   } catch (error) {
     await client.query('ROLLBACK')
-
     console.error('Error changing user role:', error)
 
     return res.status(500).json({
-      error: 'No se pudo actualizar el rol.',
+      error: 'No se pudo cambiar el rol del usuario.',
     })
   } finally {
     client.release()

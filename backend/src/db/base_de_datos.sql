@@ -1,23 +1,17 @@
 
 BEGIN;
 
- 
 -- 1. ELIMINAR TABLAS ANTERIORES
- 
-
 DROP TABLE IF EXISTS pedido_items CASCADE;
 DROP TABLE IF EXISTS pedidos CASCADE;
 DROP TABLE IF EXISTS carrito_items CASCADE;
 DROP TABLE IF EXISTS carritos CASCADE;
 DROP TABLE IF EXISTS productos CASCADE;
 DROP TABLE IF EXISTS proveedores CASCADE;
+DROP TABLE IF EXISTS role_permissions CASCADE;
 DROP TABLE IF EXISTS usuarios CASCADE;
 
-
- 
 -- 2. USUARIOS
- 
-
 CREATE TABLE usuarios (
     id SERIAL PRIMARY KEY,
     username VARCHAR(120) NOT NULL UNIQUE,
@@ -34,12 +28,7 @@ CREATE TABLE usuarios (
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-
- 
 -- 3. PROVEEDORES
--- Al eliminar al usuario, se elimina su perfil.
- 
-
 CREATE TABLE proveedores (
     id SERIAL PRIMARY KEY,
 
@@ -55,10 +44,7 @@ CREATE TABLE proveedores (
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-
- -- 4. PRODUCTOS
--- Al eliminar al proveedor, se eliminan sus productos.
- 
+-- 4. PRODUCTOS
 CREATE TABLE productos (
     id SERIAL PRIMARY KEY,
 
@@ -84,11 +70,7 @@ CREATE TABLE productos (
     actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-
- 
 -- 5. CARRITOS
--- Al eliminar al usuario, se elimina su carrito.
- 
 CREATE TABLE carritos (
     id SERIAL PRIMARY KEY,
 
@@ -98,10 +80,7 @@ CREATE TABLE carritos (
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-
- -- 6. PRODUCTOS DEL CARRITO
--- Se eliminan si desaparece el carrito o el producto.
- 
+-- 6. PRODUCTOS DEL CARRITO
 CREATE TABLE carrito_items (
     id SERIAL PRIMARY KEY,
 
@@ -117,10 +96,7 @@ CREATE TABLE carrito_items (
     UNIQUE (carrito_id, producto_id)
 );
 
-
- -- 7. PEDIDOS
--- El historial permanece aunque se elimine al usuario.
- 
+-- 7. PEDIDOS
 CREATE TABLE pedidos (
     id SERIAL PRIMARY KEY,
 
@@ -143,10 +119,7 @@ CREATE TABLE pedidos (
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-
- -- 8. DETALLES DE PEDIDOS
--- Se conserva el nombre, precio y cantidad históricos.
- 
+-- 8. DETALLES DE PEDIDOS
 CREATE TABLE pedido_items (
     id SERIAL PRIMARY KEY,
 
@@ -168,9 +141,76 @@ CREATE TABLE pedido_items (
         CHECK (subtotal >= 0)
 );
 
+-- 9. PERMISOS POR ROL
+CREATE TABLE role_permissions (
+    role VARCHAR(30) NOT NULL
+        CHECK (role IN ('admin', 'user', 'provider')),
 
- -- 9. ÍNDICES
- 
+    permission_key VARCHAR(80) NOT NULL,
+    allowed BOOLEAN NOT NULL DEFAULT FALSE,
+
+    actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (role, permission_key)
+);
+
+-- 10. PERMISOS INICIALES
+INSERT INTO role_permissions (role, permission_key, allowed)
+VALUES
+    ('admin', 'users.view', TRUE),
+    ('admin', 'users.create', TRUE),
+    ('admin', 'users.edit', TRUE),
+    ('admin', 'users.delete', TRUE),
+    ('admin', 'users.change_role', TRUE),
+    ('admin', 'permissions.manage', TRUE),
+
+    ('user', 'users.view', FALSE),
+    ('user', 'users.create', FALSE),
+    ('user', 'users.edit', FALSE),
+    ('user', 'users.delete', FALSE),
+    ('user', 'users.change_role', FALSE),
+    ('user', 'permissions.manage', FALSE),
+
+    ('provider', 'users.view', FALSE),
+    ('provider', 'users.create', FALSE),
+    ('provider', 'users.edit', FALSE),
+    ('provider', 'users.delete', FALSE),
+    ('provider', 'users.change_role', FALSE),
+    ('provider', 'permissions.manage', FALSE),
+
+    ('admin', 'products.view', TRUE),
+    ('admin', 'products.publish', TRUE),
+    ('admin', 'products.edit', TRUE),
+    ('admin', 'products.deactivate', TRUE),
+
+    ('user', 'products.view', TRUE),
+    ('user', 'products.publish', FALSE),
+    ('user', 'products.edit', FALSE),
+    ('user', 'products.deactivate', FALSE),
+
+    ('provider', 'products.view', TRUE),
+    ('provider', 'products.publish', TRUE),
+    ('provider', 'products.edit', TRUE),
+    ('provider', 'products.deactivate', TRUE),
+
+    ('admin', 'provider.profile.manage', TRUE),
+    ('user', 'provider.profile.manage', FALSE),
+    ('provider', 'provider.profile.manage', TRUE),
+
+    ('admin', 'cart.manage', TRUE),
+    ('user', 'cart.manage', TRUE),
+    ('provider', 'cart.manage', FALSE),
+
+    ('admin', 'orders.create', TRUE),
+    ('admin', 'orders.view', TRUE),
+    ('user', 'orders.create', TRUE),
+    ('user', 'orders.view', TRUE),
+    ('provider', 'orders.create', FALSE),
+    ('provider', 'orders.view', FALSE)
+
+ON CONFLICT (role, permission_key) DO NOTHING;
+
+-- 11. ÍNDICES
 CREATE INDEX idx_productos_proveedor
     ON productos(proveedor_id);
 
@@ -183,12 +223,9 @@ CREATE INDEX idx_pedidos_usuario
 CREATE INDEX idx_pedido_items_pedido
     ON pedido_items(pedido_id);
 
-
 COMMIT;
 
-
- -- 10. VERIFICAR TABLAS
- 
+-- 12. VERIFICAR TABLAS
 SELECT table_name
 FROM information_schema.tables
 WHERE table_schema = 'public'
@@ -199,27 +236,12 @@ WHERE table_schema = 'public'
       'carritos',
       'carrito_items',
       'pedidos',
-      'pedido_items'
+      'pedido_items',
+      'role_permissions'
   )
 ORDER BY table_name;
 
-
- 
-SELECT
-    tc.table_name,
-    kcu.column_name,
-    ccu.table_name AS tabla_referenciada,
-    rc.delete_rule
-FROM information_schema.table_constraints AS tc
-JOIN information_schema.key_column_usage AS kcu
-    ON tc.constraint_name = kcu.constraint_name
-   AND tc.constraint_schema = kcu.constraint_schema
-JOIN information_schema.constraint_column_usage AS ccu
-    ON ccu.constraint_name = tc.constraint_name
-   AND ccu.constraint_schema = tc.constraint_schema
-JOIN information_schema.referential_constraints AS rc
-    ON rc.constraint_name = tc.constraint_name
-   AND rc.constraint_schema = tc.constraint_schema
-WHERE tc.constraint_type = 'FOREIGN KEY'
-  AND tc.constraint_schema = 'public'
-ORDER BY tc.table_name, kcu.column_name;
+-- 13. VERIFICAR PERMISOS
+SELECT role, permission_key, allowed
+FROM role_permissions
+ORDER BY role, permission_key;

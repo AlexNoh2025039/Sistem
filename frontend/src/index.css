@@ -2,3 +2,38 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
 @import "./styles/global.css";
+
+
+
+.app-permission-status {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background: #232b36;
+  color: #f1f5f9;
+}
+
+.app-permission-status h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.app-permission-status p {
+  max-width: 480px;
+  margin: 0;
+  color: #cbd5e1;
+}
+
+.app-permission-status button {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: #6b564c;
+  color: #fff;
+  cursor: pointer;
+}

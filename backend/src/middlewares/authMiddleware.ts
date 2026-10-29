@@ -1,119 +1,171 @@
 
-import { NextFunction, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
-import pool from '../db/connection.js';
+import type { NextFunction, Request, Response } from 'express'
+import jwt, { type JwtPayload } from 'jsonwebtoken'
+import pool from '../db/connection.js'
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET
 
 if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not configured in the .env file');
+  throw new Error('JWT_SECRET is not configured in the .env file')
 }
 
-export type UserRole = 'admin' | 'user' | 'provider';
+export type UserRole = 'admin' | 'user' | 'provider'
 
 export interface TokenUser {
-  id: number;
-  username: string;
-  rol: UserRole;
+  id: number
+  username: string
+  rol: UserRole
 }
 
 declare global {
   namespace Express {
     interface Request {
-      user?: TokenUser;
+      user?: TokenUser
     }
   }
 }
+
+const validRoles: UserRole[] = ['admin', 'user', 'provider']
 
 export const verifyToken = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  const authorization = req.headers.authorization;
+  const authorization = req.headers.authorization
   const token = authorization?.startsWith('Bearer ')
-    ? authorization.slice(7)
-    : null;
+    ? authorization.slice(7).trim()
+    : null
 
   if (!token) {
-    return res.status(401).json({ error: 'Authentication required' });
+    return res.status(401).json({
+      error: 'Se requiere autenticación.',
+    })
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET)
 
-    if (typeof decoded === 'string' || typeof decoded.id !== 'number') {
-      return res.status(401).json({ error: 'Invalid token' });
+    if (
+      typeof decoded === 'string' ||
+      !('id' in decoded) ||
+      typeof decoded.id !== 'number' ||
+      !Number.isSafeInteger(decoded.id) ||
+      decoded.id <= 0
+    ) {
+      return res.status(401).json({
+        error: 'El token no es válido.',
+      })
     }
+
+    const payload = decoded as JwtPayload
 
     const result = await pool.query(
-      'SELECT id, username, rol FROM usuarios WHERE id = $1',
-      [decoded.id],
-    );
+      `SELECT id, username, rol
+       FROM usuarios
+       WHERE id = $1
+       LIMIT 1`,
+      [payload.id],
+    )
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'User account no longer exists' });
+      return res.status(401).json({
+        error: 'La cuenta ya no existe.',
+      })
     }
 
-    const user = result.rows[0];
-    const validRoles: UserRole[] = ['admin', 'user', 'provider'];
+    const user = result.rows[0]
 
-    if (!validRoles.includes(user.rol as UserRole)) {
-      return res.status(403).json({ error: 'Invalid account role' });
+    if (
+      typeof user.username !== 'string' ||
+      !validRoles.includes(user.rol as UserRole)
+    ) {
+      return res.status(403).json({
+        error: 'La cuenta tiene datos o un rol no válido.',
+      })
     }
 
     req.user = {
-      id: user.id,
+      id: Number(user.id),
       username: user.username,
       rol: user.rol as UserRole,
-    };
+    }
 
-    return next();
-  } catch (error) {
+    return next()
+  } catch (error: unknown) {
     if (
       error instanceof jwt.JsonWebTokenError ||
       error instanceof jwt.TokenExpiredError
     ) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
+      return res.status(401).json({
+        error: 'El token no es válido o ha expirado.',
+      })
     }
 
-    console.error('Error verifying token:', error);
-    return res.status(500).json({ error: 'Authentication service unavailable' });
+    console.error('Error verifying token:', error)
+
+    return res.status(500).json({
+      error: 'El servicio de autenticación no está disponible.',
+    })
   }
-};
+}
 
 export const adminOnly = (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  if (req.user?.rol !== 'admin') {
-    return res.status(403).json({ error: 'Administrator access required' });
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Se requiere autenticación.',
+    })
   }
 
-  return next();
-};
+  if (req.user.rol !== 'admin') {
+    return res.status(403).json({
+      error: 'Se requiere acceso de administrador.',
+    })
+  }
+
+  return next()
+}
 
 export const providerOnly = (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  if (req.user?.rol !== 'provider') {
-    return res.status(403).json({ error: 'Provider access required' });
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Se requiere autenticación.',
+    })
   }
 
-  return next();
-};
+  if (req.user.rol !== 'provider') {
+    return res.status(403).json({
+      error: 'Se requiere acceso de proveedor.',
+    })
+  }
+
+  return next()
+}
 
 export const userOnly = (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  if (req.user?.rol !== 'user') {
-    return res.status(403).json({ error: 'User access required' });
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Se requiere autenticación.',
+    })
   }
 
-  return next();
-};
+  if (req.user.rol !== 'user') {
+    return res.status(403).json({
+      error: 'Se requiere acceso de usuario.',
+    })
+  }
+
+  return next()
+}

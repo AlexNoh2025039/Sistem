@@ -10,7 +10,11 @@ import ProductForm from './pages/ProductForm'
 import PublicProducts from './pages/PublicProducts'
 import Cart from './pages/Cart'
 import Orders from './pages/Orders'
-import type { Product } from './services/api'
+import {
+  getMyEffectivePermissions,
+  type EffectivePermissions,
+  type Product,
+} from './services/api'
 import './index.css'
 import './styles/Design3D.css'
 
@@ -71,6 +75,10 @@ function App() {
 
   const [currentPage, setCurrentPage] = useState<Page>(getInitialPage)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [permissions, setPermissions] =
+    useState<EffectivePermissions | null>(null)
+  const [permissionsLoading, setPermissionsLoading] = useState(false)
+  const [permissionsError, setPermissionsError] = useState('')
 
   useEffect(() => {
     if (!localStorage.getItem('token') || !getStoredUser()) {
@@ -78,8 +86,64 @@ function App() {
       localStorage.removeItem('user')
       setIsAuthenticated(false)
       setCurrentPage('login')
+      setPermissions(null)
+      return
     }
+
+    setIsAuthenticated(true)
   }, [])
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setPermissions(null)
+      setPermissionsLoading(false)
+      setPermissionsError('')
+      return
+    }
+
+    const token = localStorage.getItem('token')
+
+    if (!token || !getStoredUser()) {
+      setPermissions(null)
+      setPermissionsLoading(false)
+      setPermissionsError('La sesión no es válida.')
+      return
+    }
+
+    let cancelled = false
+
+    const loadPermissions = async () => {
+      setPermissionsLoading(true)
+      setPermissionsError('')
+
+      try {
+        const result = await getMyEffectivePermissions(token)
+
+        if (cancelled) return
+
+        setPermissions(result.permissions)
+      } catch (error) {
+        if (cancelled) return
+
+        setPermissions(null)
+        setPermissionsError(
+          error instanceof Error
+            ? error.message
+            : 'No se pudieron cargar los permisos.',
+        )
+      } finally {
+        if (!cancelled) {
+          setPermissionsLoading(false)
+        }
+      }
+    }
+
+    void loadPermissions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated])
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -87,6 +151,8 @@ function App() {
     setIsAuthenticated(false)
     setCurrentPage('login')
     setSelectedProduct(null)
+    setPermissions(null)
+    setPermissionsError('')
   }
 
   const handleLoginSuccess = () => {
@@ -97,6 +163,8 @@ function App() {
       return
     }
 
+    setPermissions(null)
+    setPermissionsError('')
     setCurrentPage(getInitialPage())
     setIsAuthenticated(true)
   }
@@ -104,7 +172,12 @@ function App() {
   const handleUserCreated = () => {
     setCurrentPage('login')
     setIsAuthenticated(false)
+    setPermissions(null)
   }
+
+  const hasPermission = (
+    permission: keyof EffectivePermissions,
+  ): boolean => permissions?.[permission] === true
 
   if (!isAuthenticated) {
     if (currentPage === 'register') {
@@ -127,6 +200,115 @@ function App() {
         onLoginSuccess={handleLoginSuccess}
         onNavigateToRegister={() => setCurrentPage('register')}
       />
+    )
+  }
+
+  if (permissionsLoading) {
+    return (
+      <main className="app-permission-status">
+        <h2>Cargando permisos...</h2>
+        <p>Estamos verificando los accesos de tu cuenta.</p>
+      </main>
+    )
+  }
+
+  if (permissionsError || !permissions) {
+    return (
+      <main className="app-permission-status">
+        <h2>No se pudieron cargar los permisos</h2>
+        <p>{permissionsError || 'No hay permisos disponibles para esta sesión.'}</p>
+        <button type="button" onClick={handleLogout}>
+          Cerrar sesión
+        </button>
+      </main>
+    )
+  }
+
+  let requiredPermission: keyof EffectivePermissions | null = null
+
+  switch (currentPage) {
+    case 'users':
+      requiredPermission = 'users.view'
+      break
+
+    case 'create-user':
+      requiredPermission = 'users.create'
+      break
+
+    case 'products':
+      requiredPermission = 'products.view'
+      break
+
+    case 'product-form':
+      requiredPermission = selectedProduct
+        ? 'products.edit'
+        : 'products.publish'
+      break
+
+    case 'cart':
+      requiredPermission = 'cart.manage'
+      break
+
+    case 'orders':
+      requiredPermission = 'orders.view'
+      break
+
+    default:
+      requiredPermission = null
+  }
+
+  const pageAllowedByRole =
+    (user.role === 'admin' &&
+      ['users', 'create-user', 'profile'].includes(currentPage)) ||
+    (user.role === 'provider' &&
+      ['products', 'product-form', 'profile'].includes(currentPage)) ||
+    (user.role === 'user' &&
+      ['public-products', 'cart', 'orders', 'profile'].includes(currentPage))
+
+  const pageAllowedByPermission =
+    requiredPermission === null || hasPermission(requiredPermission)
+
+  if (!pageAllowedByRole || !pageAllowedByPermission) {
+    const fallbackPage: Page =
+      user.role === 'admin'
+        ? 'users'
+        : user.role === 'provider'
+          ? 'products'
+          : 'public-products'
+
+    const fallbackPermission =
+      fallbackPage === 'users'
+        ? 'users.view'
+        : fallbackPage === 'products'
+          ? 'products.view'
+          : null
+
+    const fallbackAllowed =
+      fallbackPermission === null || hasPermission(fallbackPermission)
+
+    return (
+      <main className="app-permission-status">
+        <h2>Acceso no autorizado</h2>
+        <p>
+          Tu cuenta no tiene permiso para acceder a esta sección.
+        </p>
+
+        {fallbackAllowed && (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedProduct(null)
+              setCurrentPage(fallbackPage)
+            }}
+          >
+            Volver
+          </button>
+        )}
+
+        <button type="button" onClick={handleLogout}>
+          Cerrar sesión
+        </button>
+      </main>
     )
   }
 

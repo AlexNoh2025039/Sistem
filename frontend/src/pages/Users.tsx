@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
@@ -5,6 +6,7 @@ import {
   getPhotoUrl,
   getProfile,
 } from '../services/api'
+import PermissionMatrix from './PermissionMatrix'
 import '../styles/Users.css'
 
 type UserRole = 'admin' | 'user' | 'provider'
@@ -45,9 +47,9 @@ function Users({
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createUsername, setCreateUsername] = useState('')
   const [createPassword, setCreatePassword] = useState('')
-  const [createRole, setCreateRole] = useState<UserRole>('user')
   const [creatingUser, setCreatingUser] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [showPermissionMatrix, setShowPermissionMatrix] = useState(false)
 
   let currentUser: User | null = null
 
@@ -298,7 +300,9 @@ function Users({
     }
   }
 
-  const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateUser = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault()
 
     if (!isAdmin) {
@@ -308,20 +312,29 @@ function Users({
 
     const username = createUsername.trim()
 
-    if (username.length < 3) {
-      setCreateError('El nombre de usuario debe tener al menos 3 caracteres.')
+    if (username.length < 3 || username.length > 50) {
+      setCreateError(
+        'El nombre de usuario debe tener entre 3 y 50 caracteres.',
+      )
       return
     }
 
-    if (createPassword.length < 8) {
-      setCreateError('La contraseña debe tener al menos 8 caracteres.')
+    if (
+      createPassword.length < 8 ||
+      new TextEncoder().encode(createPassword).length > 72
+    ) {
+      setCreateError(
+        'La contraseña debe tener al menos 8 caracteres y no superar los 72 bytes.',
+      )
       return
     }
 
     const token = localStorage.getItem('token')
 
     if (!token) {
-      setCreateError('No hay una sesión activa. Iniciá sesión nuevamente.')
+      setCreateError(
+        'No hay una sesión activa. Iniciá sesión nuevamente.',
+      )
       return
     }
 
@@ -331,7 +344,7 @@ function Users({
     setMessage('')
 
     try {
-      const response = await fetch(`${API_URL}/users`, {
+      const response = await fetch(`${API_URL}/admin/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -340,7 +353,6 @@ function Users({
         body: JSON.stringify({
           username,
           password: createPassword,
-          role: createRole,
         }),
       })
 
@@ -353,8 +365,9 @@ function Users({
       setShowCreateModal(false)
       setCreateUsername('')
       setCreatePassword('')
-      setCreateRole('user')
-      setMessage(`El usuario "${username}" fue creado correctamente.`)
+      setMessage(
+        `El usuario "${username}" fue creado correctamente con el rol Usuario.`,
+      )
 
       await loadUsers()
     } catch (err) {
@@ -376,6 +389,18 @@ function Users({
 
   const usernameInitial =
     currentUser?.username?.charAt(0).toUpperCase() || 'U'
+
+  if (showPermissionMatrix && isAdmin) {
+    return (
+      <PermissionMatrix
+        onBack={() => {
+          setShowPermissionMatrix(false)
+          setError('')
+          setMessage('')
+        }}
+      />
+    )
+  }
 
   return (
     <main className="users-page">
@@ -404,6 +429,21 @@ function Users({
             <span>Usuarios</span>
             <span className="users-nav-indicator" />
           </button>
+
+          {isAdmin && (
+            <button
+              className="users-nav-item"
+              type="button"
+              onClick={() => {
+                setShowPermissionMatrix(true)
+                setError('')
+                setMessage('')
+              }}
+            >
+              <span className="users-nav-icon">⚙</span>
+              <span>Matriz de permisos</span>
+            </button>
+          )}
 
           <button
             className="users-nav-item"
@@ -830,24 +870,17 @@ function Users({
                   disabled={creatingUser}
                 />
                 <small>
-                  Usá al menos 8 caracteres para la contraseña.
+                  Usá al menos 8 caracteres. Máximo 72 bytes.
                 </small>
               </label>
 
-              <label className="users-modal-field">
-                <span>Rol y permisos</span>
-                <select
-                  value={createRole}
-                  onChange={(event) =>
-                    setCreateRole(event.target.value as UserRole)
-                  }
-                  disabled={creatingUser}
-                >
-                  <option value="user">Usuario</option>
-                  <option value="provider">Proveedor</option>
-                  <option value="admin">Administrador</option>
-                </select>
-              </label>
+              <div className="users-modal-field">
+                <span>Rol inicial</span>
+                <p>
+                  Usuario normal. Un administrador podrá cambiar el rol
+                  posteriormente.
+                </p>
+              </div>
 
               <div className="users-modal-actions">
                 <button
