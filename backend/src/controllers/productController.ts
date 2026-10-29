@@ -11,6 +11,16 @@ const getProviderId = async (userId: number): Promise<number | null> => {
   return result.rows[0]?.id ?? null;
 };
 
+const getProductImage = (req: Request): string | null => {
+  if (req.file) {
+    return `/uploads/${req.file.filename}`;
+  }
+
+  return typeof req.body.imagen_url === 'string'
+    ? req.body.imagen_url.trim() || null
+    : null;
+};
+
 export const listProducts = async (req: Request, res: Response) => {
   const { categoria, search } = req.query;
 
@@ -122,7 +132,6 @@ export const createProduct = async (req: Request, res: Response) => {
     modelo,
     precio,
     existencias,
-    imagen_url,
   } = req.body;
 
   const parsedPrice = Number(precio);
@@ -151,6 +160,8 @@ export const createProduct = async (req: Request, res: Response) => {
       });
     }
 
+    const imagenProducto = getProductImage(req);
+
     const result = await pool.query(
       `INSERT INTO productos
          (proveedor_id, nombre, descripcion, categoria, marca,
@@ -166,7 +177,7 @@ export const createProduct = async (req: Request, res: Response) => {
         typeof modelo === 'string' ? modelo.trim() : null,
         parsedPrice,
         parsedStock,
-        typeof imagen_url === 'string' ? imagen_url.trim() || null : null,
+        imagenProducto,
       ],
     );
 
@@ -193,7 +204,6 @@ export const updateProduct = async (req: Request, res: Response) => {
     modelo,
     precio,
     existencias,
-    imagen_url,
   } = req.body;
 
   const parsedPrice = Number(precio);
@@ -224,6 +234,8 @@ export const updateProduct = async (req: Request, res: Response) => {
       });
     }
 
+    const imagenProducto = getProductImage(req);
+
     const result = await pool.query(
       `UPDATE productos
        SET nombre = $1,
@@ -247,7 +259,7 @@ export const updateProduct = async (req: Request, res: Response) => {
         typeof modelo === 'string' ? modelo.trim() : null,
         parsedPrice,
         parsedStock,
-        typeof imagen_url === 'string' ? imagen_url.trim() || null : null,
+        imagenProducto,
         id,
         providerId,
       ],

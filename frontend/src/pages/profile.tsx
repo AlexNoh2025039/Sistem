@@ -6,6 +6,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from 'react'
+
 import {
   changePassword,
   getPhotoUrl,
@@ -14,6 +15,7 @@ import {
   uploadProfilePhoto,
   type ProfileUser,
 } from '../services/api'
+
 import '../styles/Users.css'
 
 interface ProfileProps {
@@ -51,6 +53,7 @@ function Profile({
 
   const [username, setUsername] = useState(storedUser?.username ?? '')
   const [correo, setCorreo] = useState('')
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -117,6 +120,20 @@ function Profile({
     }
   }, [])
 
+  const handleEditProfile = () => {
+    setProfileMessage('')
+    setProfileError('')
+    setIsEditingProfile(true)
+  }
+
+  const handleCancelEdit = () => {
+    setUsername(user?.username ?? '')
+    setCorreo(user?.correo ?? '')
+    setProfileMessage('')
+    setProfileError('')
+    setIsEditingProfile(false)
+  }
+
   const handleProfileSubmit = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
@@ -140,7 +157,9 @@ function Profile({
     const token = localStorage.getItem('token')
 
     if (!token) {
-      setProfileError('Tu sesión no está disponible. Iniciá sesión nuevamente.')
+      setProfileError(
+        'Tu sesión no está disponible. Iniciá sesión nuevamente.',
+      )
       return
     }
 
@@ -148,7 +167,10 @@ function Profile({
 
     try {
       const updatedProfile = await updateProfile(
-        { username: cleanUsername, correo: cleanCorreo },
+        {
+          username: cleanUsername,
+          correo: cleanCorreo,
+        },
         token,
       )
 
@@ -157,7 +179,8 @@ function Profile({
           ? {
             ...currentUser,
             ...updatedProfile,
-            photoUrl: updatedProfile.photoUrl ?? currentUser.photoUrl,
+            photoUrl:
+              updatedProfile.photoUrl ?? currentUser.photoUrl,
           }
           : updatedProfile,
       )
@@ -170,6 +193,7 @@ function Profile({
       if (savedUser) {
         try {
           const parsedUser = JSON.parse(savedUser) as StoredUser
+
           localStorage.setItem(
             'user',
             JSON.stringify({
@@ -178,11 +202,14 @@ function Profile({
             }),
           )
         } catch {
-          // El perfil sigue actualizado en el servidor.
+          // Los datos del perfil ya se actualizaron en el servidor.
         }
       }
 
-      setProfileMessage('Los datos de tu cuenta se actualizaron correctamente.')
+      setProfileMessage(
+        'Los datos de tu cuenta se actualizaron correctamente.',
+      )
+      setIsEditingProfile(false)
     } catch (err) {
       setProfileError(
         err instanceof Error
@@ -194,7 +221,9 @@ function Profile({
     }
   }
 
-  const handlePhotoSelection = (event: ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelection = (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0]
 
     setPhotoMessage('')
@@ -226,7 +255,9 @@ function Profile({
     setPreviewUrl(newPreviewUrl)
   }
 
-  const handlePhotoSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handlePhotoSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault()
     setPhotoMessage('')
     setPhotoError('')
@@ -235,7 +266,9 @@ function Profile({
     const token = localStorage.getItem('token')
 
     if (!token) {
-      setPhotoError('Tu sesión no está disponible. Iniciá sesión nuevamente.')
+      setPhotoError(
+        'Tu sesión no está disponible. Iniciá sesión nuevamente.',
+      )
       return
     }
 
@@ -359,7 +392,10 @@ function Profile({
 
         <div className="users-nav-label">MENÚ PRINCIPAL</div>
 
-        <nav className="users-navigation" aria-label="Navegación principal">
+        <nav
+          className="users-navigation"
+          aria-label="Navegación principal"
+        >
           <button
             className="users-nav-item"
             type="button"
@@ -409,7 +445,11 @@ function Profile({
         </nav>
 
         <div className="users-sidebar-bottom">
-          <button className="users-logout" type="button" onClick={onLogout}>
+          <button
+            className="users-logout"
+            type="button"
+            onClick={onLogout}
+          >
             <span>↪</span>
             Cerrar sesión
           </button>
@@ -432,7 +472,9 @@ function Profile({
               <h1>
                 Mi cuenta<span>.</span>
               </h1>
-              <p>Actualizá tus datos personales y la seguridad de tu cuenta.</p>
+              <p>
+                Actualizá tus datos personales y la seguridad de tu cuenta.
+              </p>
             </div>
           </section>
 
@@ -443,20 +485,17 @@ function Profile({
                   className="profile-avatar"
                   src={displayedPhoto}
                   alt={`Foto de perfil de ${user?.username ?? 'usuario'}`}
-                  style={{
-                    width: 88,
-                    height: 88,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                  }}
                 />
               ) : (
-                <div className="profile-avatar" aria-label="Sin foto de perfil">
+                <div
+                  className="profile-avatar"
+                  aria-label="Sin foto de perfil"
+                >
                   {usernameInitial}
                 </div>
               )}
 
-              <div>
+              <div className="profile-heading-info">
                 <h2>{user?.username ?? 'Usuario'}</h2>
                 <p>
                   {isAdmin
@@ -491,13 +530,34 @@ function Profile({
 
             <div className="users-table-header">
               <div>
-                <span className="users-section-eyebrow">DATOS PERSONALES</span>
+                <span className="users-section-eyebrow">
+                  DATOS PERSONALES
+                </span>
                 <h2>Información de la cuenta</h2>
-                <p>Podés modificar tu nombre de usuario y correo electrónico.</p>
+                <p>
+                  {isEditingProfile
+                    ? 'Editá tus datos y guardá los cambios.'
+                    : 'Consultá tus datos personales o seleccioná Editar para modificarlos.'}
+                </p>
               </div>
+
+              {!isEditingProfile && (
+                <button
+                  className="users-refresh"
+                  type="button"
+                  onClick={handleEditProfile}
+                  aria-label="Editar información de la cuenta"
+                  title="Editar perfil"
+                >
+                  ✎ Editar
+                </button>
+              )}
             </div>
 
-            <form className="create-user-form" onSubmit={handleProfileSubmit}>
+            <form
+              className="create-user-form"
+              onSubmit={handleProfileSubmit}
+            >
               <label>
                 Nombre de usuario
                 <input
@@ -506,6 +566,7 @@ function Profile({
                   onChange={(event) => setUsername(event.target.value)}
                   autoComplete="username"
                   maxLength={50}
+                  readOnly={!isEditingProfile}
                   required
                 />
               </label>
@@ -518,42 +579,61 @@ function Profile({
                   onChange={(event) => setCorreo(event.target.value)}
                   autoComplete="email"
                   maxLength={255}
+                  readOnly={!isEditingProfile}
                   required
                 />
               </label>
 
               {profileError && (
-                <p role="alert" className="users-alert users-alert-error">
+                <div className="users-alert users-alert-error" role="alert">
                   {profileError}
-                </p>
+                </div>
               )}
 
               {profileMessage && (
-                <p role="status" className="users-alert users-alert-success">
+                <div className="users-alert" role="status">
                   {profileMessage}
-                </p>
+                </div>
               )}
 
-              <div className="create-user-actions">
-                <button
-                  className="users-create-button"
-                  type="submit"
-                  disabled={profileLoading}
-                >
-                  {profileLoading ? 'Guardando...' : 'Guardar cambios'}
-                </button>
-              </div>
-            </form>
+              {isEditingProfile && (
+                <div className="create-user-actions">
+                  <button
+                    className="users-refresh"
+                    type="button"
+                    onClick={handleCancelEdit}
+                    disabled={profileLoading}
+                  >
+                    Cancelar
+                  </button>
 
+                  <button
+                    className="users-create-button"
+                    type="submit"
+                    disabled={profileLoading}
+                  >
+                    {profileLoading ? 'Guardando...' : 'Guardar cambios'}
+                  </button>
+                </div>
+              )}
+            </form>
+          </section>
+
+          <section className="users-table-card profile-card">
             <div className="users-table-header">
               <div>
-                <span className="users-section-eyebrow">PERSONALIZACIÓN</span>
-                <h2>Foto de perfil</h2>
-                <p>Elegí una imagen JPG, PNG o WebP de hasta 2 MB.</p>
+                <span className="users-section-eyebrow">FOTO DE PERFIL</span>
+                <h2>Imagen de tu cuenta</h2>
+                <p>
+                  Seleccioná una imagen JPG, PNG o WebP de hasta 2 MB.
+                </p>
               </div>
             </div>
 
-            <form className="create-user-form" onSubmit={handlePhotoSubmit}>
+            <form
+              className="create-user-form"
+              onSubmit={handlePhotoSubmit}
+            >
               <label>
                 Seleccionar imagen
                 <input
@@ -561,20 +641,29 @@ function Profile({
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   onChange={handlePhotoSelection}
-                  disabled={photoLoading}
                 />
               </label>
 
+              {previewUrl && (
+                <div className="profile-photo-preview">
+                  <img
+                    className="profile-avatar"
+                    src={previewUrl}
+                    alt="Vista previa de la nueva foto"
+                  />
+                </div>
+              )}
+
               {photoError && (
-                <p role="alert" className="users-alert users-alert-error">
+                <div className="users-alert users-alert-error" role="alert">
                   {photoError}
-                </p>
+                </div>
               )}
 
               {photoMessage && (
-                <p role="status" className="users-alert users-alert-success">
+                <div className="users-alert" role="status">
                   {photoMessage}
-                </p>
+                </div>
               )}
 
               <div className="create-user-actions">
@@ -583,7 +672,7 @@ function Profile({
                   type="submit"
                   disabled={photoLoading}
                 >
-                  {photoLoading ? 'Subiendo foto...' : 'Guardar foto'}
+                  {photoLoading ? 'Subiendo...' : 'Actualizar foto'}
                 </button>
               </div>
             </form>
@@ -594,17 +683,24 @@ function Profile({
               <div>
                 <span className="users-section-eyebrow">SEGURIDAD</span>
                 <h2>Cambiar contraseña</h2>
-                <p>Verificá tu contraseña actual para establecer una nueva.</p>
+                <p>
+                  Usá una contraseña de al menos 8 caracteres.
+                </p>
               </div>
             </div>
 
-            <form className="create-user-form" onSubmit={handlePasswordSubmit}>
+            <form
+              className="create-user-form"
+              onSubmit={handlePasswordSubmit}
+            >
               <label>
                 Contraseña actual
                 <input
                   type="password"
                   value={currentPassword}
-                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  onChange={(event) =>
+                    setCurrentPassword(event.target.value)
+                  }
                   autoComplete="current-password"
                   required
                 />
@@ -627,7 +723,9 @@ function Profile({
                 <input
                   type="password"
                   value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  onChange={(event) =>
+                    setConfirmPassword(event.target.value)
+                  }
                   autoComplete="new-password"
                   minLength={8}
                   required
@@ -635,31 +733,18 @@ function Profile({
               </label>
 
               {error && (
-                <p role="alert" className="users-alert users-alert-error">
+                <div className="users-alert users-alert-error" role="alert">
                   {error}
-                </p>
+                </div>
               )}
 
               {message && (
-                <p role="status" className="users-alert users-alert-success">
+                <div className="users-alert" role="status">
                   {message}
-                </p>
+                </div>
               )}
 
               <div className="create-user-actions">
-                <button
-                  className="users-refresh"
-                  type="button"
-                  onClick={onNavigateToUsers}
-                  disabled={loading}
-                >
-                  {isProvider
-                    ? 'Volver al inventario'
-                    : isAdmin
-                      ? 'Volver a usuarios'
-                      : 'Volver al catálogo'}
-                </button>
-
                 <button
                   className="users-create-button"
                   type="submit"

@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
-import { createProduct, updateProduct } from '../services/api'
+import { createProduct, getPhotoUrl, updateProduct } from '../services/api'
 import type { Product, ProductInput } from '../services/api'
 import '../styles/ProductForm.css'
 
@@ -27,6 +27,8 @@ function ProductForm({ product, onBack, onSaved }: ProductFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [imageError, setImageError] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
 
   const isEditing = product !== null
 
@@ -48,7 +50,21 @@ function ProductForm({ product, onBack, onSaved }: ProductFormProps) {
 
     setError('')
     setImageError(false)
+    setSelectedImage(null)
+    setImagePreview(null)
   }, [product])
+
+  useEffect(() => {
+    if (!selectedImage) {
+      setImagePreview(null)
+      return
+    }
+
+    const objectUrl = URL.createObjectURL(selectedImage)
+    setImagePreview(objectUrl)
+
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [selectedImage])
 
   const handleChange = (
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -65,9 +81,35 @@ function ProductForm({ product, onBack, onSaved }: ProductFormProps) {
           : value,
     }))
 
-    if (name === 'imagen_url') {
-      setImageError(false)
+  }
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null
+    setImageError(false)
+
+    if (!file) {
+      setSelectedImage(null)
+      return
     }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+
+    if (!allowedTypes.includes(file.type)) {
+      setError('Seleccioná una imagen JPG, PNG o WebP.')
+      event.target.value = ''
+      setSelectedImage(null)
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('La imagen no puede superar los 5 MB.')
+      event.target.value = ''
+      setSelectedImage(null)
+      return
+    }
+
+    setError('')
+    setSelectedImage(file)
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -115,9 +157,9 @@ function ProductForm({ product, onBack, onSaved }: ProductFormProps) {
       }
 
       if (isEditing && product) {
-        await updateProduct(product.id, productData, token)
+        await updateProduct(product.id, productData, token, selectedImage)
       } else {
-        await createProduct(productData, token)
+        await createProduct(productData, token, selectedImage)
       }
 
       onSaved()
@@ -294,36 +336,38 @@ function ProductForm({ product, onBack, onSaved }: ProductFormProps) {
               <span className="product-form-section-number">03</span>
               <div>
                 <h2>Imagen del producto</h2>
-                <p>Agregá un enlace directo a una imagen.</p>
+                <p>Seleccioná una imagen desde tu computadora.</p>
               </div>
             </div>
 
             <div className="product-form-field">
-              <label htmlFor="imagen_url">URL de la imagen</label>
+              <label htmlFor="product-image">Imagen</label>
               <input
-                id="imagen_url"
-                name="imagen_url"
-                type="url"
-                value={form.imagen_url}
-                onChange={handleChange}
-                placeholder="https://ejemplo.com/imagen.jpg"
-                maxLength={2000}
+                id="product-image"
+                name="image"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleImageChange}
+                disabled={loading}
               />
+              <span className="product-form-hint">
+                Formatos JPG, PNG o WebP. Tamaño máximo: 5 MB.
+              </span>
             </div>
 
-            {form.imagen_url.trim() && !imageError && (
+            {(imagePreview || (!selectedImage && form.imagen_url.trim())) && (
               <div className="product-form-image-preview">
                 <img
-                  src={form.imagen_url}
+                  src={imagePreview ?? getPhotoUrl(form.imagen_url) ?? ''}
                   alt="Vista previa del producto"
                   onError={() => setImageError(true)}
                 />
               </div>
             )}
 
-            {form.imagen_url.trim() && imageError && (
+            {imageError && (
               <p className="product-form-hint">
-                No se pudo mostrar la imagen. Revisá el enlace.
+                No se pudo mostrar la imagen seleccionada.
               </p>
             )}
           </section>

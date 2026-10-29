@@ -32,6 +32,7 @@ import {
 
 import {
   uploadProfilePhoto,
+  uploadProductImage,
 } from './middlewares/uploadMiddleware.js';
 
 import {
@@ -66,6 +67,62 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(uploadDirectory));
 
+const handleProfilePhotoUpload = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) => {
+  uploadProfilePhoto.single('photo')(req, res, (error) => {
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          error: 'La imagen no puede superar los 2 MB.',
+        });
+      }
+
+      return res.status(400).json({
+        error: 'No se pudo procesar la imagen.',
+      });
+    }
+
+    if (error) {
+      return res.status(400).json({
+        error: error.message || 'Imagen no válida.',
+      });
+    }
+
+    next();
+  });
+};
+
+const handleProductImageUpload = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) => {
+  uploadProductImage.single('image')(req, res, (error) => {
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          error: 'La imagen del producto no puede superar los 5 MB.',
+        });
+      }
+
+      return res.status(400).json({
+        error: 'No se pudo procesar la imagen del producto.',
+      });
+    }
+
+    if (error) {
+      return res.status(400).json({
+        error: error.message || 'Imagen del producto no válida.',
+      });
+    }
+
+    next();
+  });
+};
+
 app.get('/api/health', (_req, res) => {
   res.json({ message: 'API is running' });
 });
@@ -88,29 +145,7 @@ app.patch('/api/profile/password', verifyToken, changePassword);
 app.post(
   '/api/profile/photo',
   verifyToken,
-  (req, res, next) => {
-    uploadProfilePhoto.single('photo')(req, res, (error) => {
-      if (error instanceof multer.MulterError) {
-        if (error.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({
-            error: 'La imagen no puede superar los 2 MB.',
-          });
-        }
-
-        return res.status(400).json({
-          error: 'No se pudo procesar la imagen.',
-        });
-      }
-
-      if (error) {
-        return res.status(400).json({
-          error: error.message || 'Imagen no válida.',
-        });
-      }
-
-      return next();
-    });
-  },
+  handleProfilePhotoUpload,
   saveProfilePhoto,
 );
 
@@ -145,6 +180,7 @@ app.post(
   '/api/provider/products',
   verifyToken,
   providerOnly,
+  handleProductImageUpload,
   createProduct,
 );
 
@@ -152,6 +188,7 @@ app.put(
   '/api/provider/products/:id',
   verifyToken,
   providerOnly,
+  handleProductImageUpload,
   updateProduct,
 );
 

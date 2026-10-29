@@ -380,17 +380,34 @@ export async function getProductById(id: number): Promise<Product> {
   return readResponse<Product>(response)
 }
 
+function buildProductFormData(product: ProductInput, image?: File | null): FormData {
+  const formData = new FormData()
+
+  formData.append('nombre', product.nombre)
+  formData.append('descripcion', product.descripcion)
+  formData.append('categoria', product.categoria)
+  formData.append('marca', product.marca)
+  formData.append('modelo', product.modelo)
+  formData.append('precio', String(product.precio))
+  formData.append('existencias', String(product.existencias))
+  formData.append('imagen_url', product.imagen_url)
+
+  if (image) {
+    formData.append('image', image)
+  }
+
+  return formData
+}
+
 export async function createProduct(
   product: ProductInput,
   token: string,
+  image?: File | null,
 ): Promise<{ message: string; product?: Product }> {
   const response = await fetch(`${API_URL}/provider/products`, {
     method: 'POST',
-    headers: {
-      ...authHeaders(token),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(product),
+    headers: authHeaders(token),
+    body: buildProductFormData(product, image),
   })
 
   return readResponse<{ message: string; product?: Product }>(response)
@@ -400,14 +417,12 @@ export async function updateProduct(
   id: number,
   product: ProductInput,
   token: string,
+  image?: File | null,
 ): Promise<{ message: string; product?: Product }> {
   const response = await fetch(`${API_URL}/provider/products/${id}`, {
     method: 'PUT',
-    headers: {
-      ...authHeaders(token),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(product),
+    headers: authHeaders(token),
+    body: buildProductFormData(product, image),
   })
 
   return readResponse<{ message: string; product?: Product }>(response)

@@ -26,19 +26,28 @@ const storage = multer.diskStorage({
   },
 });
 
-export const uploadProfilePhoto = multer({
-  storage,
-  limits: {
-    fileSize: 2 * 1024 * 1024,
-    files: 1,
-  },
-  fileFilter: (_req, file, callback) => {
-    if (!allowedTypes[file.mimetype]) {
-      return callback(
-        new Error('Solo se permiten imágenes JPG, PNG o WebP.'),
-      );
-    }
+const createImageUploader = (maxFileSize: number) =>
+  multer({
+    storage,
+    limits: {
+      fileSize: maxFileSize,
+      files: 1,
+    },
+    fileFilter: (_req, file, callback) => {
+      if (!allowedTypes[file.mimetype]) {
+        return callback(
+          new Error('Solo se permiten imágenes JPG, PNG o WebP.'),
+        );
+      }
 
-    callback(null, true);
-  },
-});
+      callback(null, true);
+    },
+  });
+
+export const uploadProfilePhoto = createImageUploader(
+  2 * 1024 * 1024,
+);
+
+export const uploadProductImage = createImageUploader(
+  5 * 1024 * 1024,
+);
