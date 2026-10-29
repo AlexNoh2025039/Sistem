@@ -1,12 +1,5 @@
-
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type FormEvent,
-} from 'react'
-
+import { useEffect, useRef, useState } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import {
   changePassword,
   getPhotoUrl,
@@ -15,8 +8,10 @@ import {
   uploadProfilePhoto,
   type ProfileUser,
 } from '../services/api'
-
 import '../styles/Users.css'
+
+type UserRole = 'admin' | 'user' | 'provider'
+type ProfileTab = 'info' | 'photo' | 'password'
 
 interface ProfileProps {
   onNavigateToUsers: () => void
@@ -27,7 +22,7 @@ interface ProfileProps {
 interface StoredUser {
   id: number
   username: string
-  role: 'admin' | 'user' | 'provider'
+  role: UserRole
 }
 
 function Profile({
@@ -35,33 +30,24 @@ function Profile({
   onNavigateToCreateUser,
   onLogout,
 }: ProfileProps) {
-  const [storedUser] = useState<StoredUser | null>(() => {
-    try {
-      return JSON.parse(
-        localStorage.getItem('user') || 'null',
-      ) as StoredUser | null
-    } catch {
-      return null
-    }
-  })
+  const [user, setUser] = useState<
+    (StoredUser & {
+      correo: string
+      photoUrl: string | null
+    }) | null
+  >(null)
 
-  const [user, setUser] = useState<ProfileUser | null>(
-    storedUser
-      ? { ...storedUser, correo: '', photoUrl: null }
-      : null,
-  )
-
-  const [username, setUsername] = useState(storedUser?.username ?? '')
+  const [username, setUsername] = useState('')
   const [correo, setCorreo] = useState('')
   const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [activeTab, setActiveTab] = useState<ProfileTab>('info')
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [passwordMessage, setPasswordMessage] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordLoading, setPasswordLoading] = useState(false)
 
   const [profileMessage, setProfileMessage] = useState('')
   const [profileError, setProfileError] = useState('')
@@ -70,38 +56,62 @@ function Profile({
   const [photoMessage, setPhotoMessage] = useState('')
   const [photoError, setPhotoError] = useState('')
   const [photoLoading, setPhotoLoading] = useState(false)
+  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const photoInputRef = useRef<HTMLInputElement>(null)
   const previewUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-
-    if (!token) {
-      setError('Tu sesión no está disponible. Iniciá sesión nuevamente.')
-      return
-    }
-
     let active = true
 
     const loadProfile = async () => {
+      const token = localStorage.getItem('token')
+
+      if (!token) {
+        setProfileError(
+          'No hay una sesión activa. Iniciá sesión nuevamente.',
+        )
+        return
+      }
+
       try {
         const profile = await getProfile(token)
 
-        if (active) {
-          setUser(profile)
-          setUsername(profile.username)
-          setCorreo(profile.correo ?? '')
+        if (!active) return
+
+        const storedUser = JSON.parse(
+          localStorage.getItem('user') || 'null',
+        ) as StoredUser | null
+
+        const profileData = profile as ProfileUser & {
+          id?: number
+          username?: string
+          role?: UserRole
+          correo?: string
+          email?: string
+          photoUrl?: string | null
         }
+
+        const nextUser = {
+          id: profileData.id ?? storedUser?.id ?? 0,
+          username: profileData.username ?? storedUser?.username ?? '',
+          role: profileData.role ?? storedUser?.role ?? 'user',
+          correo: profileData.correo ?? profileData.email ?? '',
+          photoUrl: profileData.photoUrl ?? null,
+        }
+
+        setUser(nextUser)
+        setUsername(nextUser.username)
+        setCorreo(nextUser.correo)
       } catch (err) {
-        if (active) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'No se pudo cargar tu perfil.',
-          )
-        }
+        if (!active) return
+
+        setProfileError(
+          err instanceof Error
+            ? err.message
+            : 'No se pudo cargar tu perfil.',
+        )
       }
     }
 
@@ -120,7 +130,44 @@ function Profile({
     }
   }, [])
 
+  const isAdmin = user?.role === 'admin'
+  const isProvider = user?.role === 'provider'
+
+  const usernameInitial =
+    user?.username?.charAt(0).toUpperCase() || 'U'
+
+  const displayedPhoto =
+    previewUrl || getPhotoUrl(user?.photoUrl ?? null)
+
+  const roleLabels: Record<UserRole, string> = {
+    admin: 'Administrador',
+    user: 'Usuario',
+    provider: 'Proveedor',
+  }
+
+  const clearPreview = () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current)
+      previewUrlRef.current = null
+    }
+
+    setPreviewUrl(null)
+    setSelectedPhoto(null)
+
+    if (photoInputRef.current) {
+      photoInputRef.current.value = ''
+    }
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    onLogout()
+  }
+
   const handleEditProfile = () => {
+    setUsername(user?.username ?? '')
+    setCorreo(user?.correo ?? '')
     setProfileMessage('')
     setProfileError('')
     setIsEditingProfile(true)
@@ -138,35 +185,44 @@ function Profile({
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
-    setProfileMessage('')
-    setProfileError('')
 
     const cleanUsername = username.trim()
     const cleanCorreo = correo.trim()
 
-    if (!cleanUsername || !cleanCorreo) {
-      setProfileError('Completá el nombre de usuario y el correo.')
+    if (!cleanUsername) {
+      setProfileError('El nombre de usuario es obligatorio.')
+      setProfileMessage('')
       return
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanCorreo)) {
+    if (!cleanCorreo) {
+      setProfileError('El correo electrónico es obligatorio.')
+      setProfileMessage('')
+      return
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+    if (!emailPattern.test(cleanCorreo)) {
       setProfileError('Ingresá un correo electrónico válido.')
+      setProfileMessage('')
       return
     }
 
     const token = localStorage.getItem('token')
 
     if (!token) {
-      setProfileError(
-        'Tu sesión no está disponible. Iniciá sesión nuevamente.',
-      )
+      setProfileError('No hay una sesión activa.')
+      setProfileMessage('')
       return
     }
 
     setProfileLoading(true)
+    setProfileError('')
+    setProfileMessage('')
 
     try {
-      const updatedProfile = await updateProfile(
+      await updateProfile(
         {
           username: cleanUsername,
           correo: cleanCorreo,
@@ -174,73 +230,67 @@ function Profile({
         token,
       )
 
-      setUser((currentUser) =>
-        currentUser
-          ? {
-            ...currentUser,
-            ...updatedProfile,
-            photoUrl:
-              updatedProfile.photoUrl ?? currentUser.photoUrl,
-          }
-          : updatedProfile,
-      )
-
-      setUsername(updatedProfile.username)
-      setCorreo(updatedProfile.correo)
-
-      const savedUser = localStorage.getItem('user')
-
-      if (savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser) as StoredUser
-
-          localStorage.setItem(
-            'user',
-            JSON.stringify({
-              ...parsedUser,
-              username: updatedProfile.username,
-            }),
-          )
-        } catch {
-          // Los datos del perfil ya se actualizaron en el servidor.
-        }
+      const updatedUser = {
+        ...user!,
+        username: cleanUsername,
+        correo: cleanCorreo,
       }
 
-      setProfileMessage(
-        'Los datos de tu cuenta se actualizaron correctamente.',
+      setUser(updatedUser)
+      setUsername(cleanUsername)
+      setCorreo(cleanCorreo)
+
+      const storedUser = JSON.parse(
+        localStorage.getItem('user') || '{}',
+      ) as Record<string, unknown>
+
+      localStorage.setItem(
+        'user',
+        JSON.stringify({
+          ...storedUser,
+          username: cleanUsername,
+        }),
       )
+
       setIsEditingProfile(false)
+      setProfileMessage('Tu información se actualizó correctamente.')
     } catch (err) {
       setProfileError(
         err instanceof Error
           ? err.message
-          : 'No se pudieron actualizar los datos de tu cuenta.',
+          : 'No se pudo actualizar tu información.',
       )
     } finally {
       setProfileLoading(false)
     }
   }
 
-  const handlePhotoSelection = (
+  const handlePhotoChange = (
     event: ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0]
 
-    setPhotoMessage('')
     setPhotoError('')
+    setPhotoMessage('')
 
     if (!file) return
 
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+    ]
 
     if (!allowedTypes.includes(file.type)) {
-      setPhotoError('Seleccioná una imagen JPG, PNG o WebP.')
+      setPhotoError(
+        'Seleccioná una imagen JPG, PNG o WebP.',
+      )
       event.target.value = ''
       return
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      setPhotoError('La imagen no puede superar los 2 MB.')
+      setPhotoError('La imagen no debe superar los 2 MB.')
       event.target.value = ''
       return
     }
@@ -249,57 +299,66 @@ function Profile({
       URL.revokeObjectURL(previewUrlRef.current)
     }
 
-    const newPreviewUrl = URL.createObjectURL(file)
+    const nextPreviewUrl = URL.createObjectURL(file)
 
-    previewUrlRef.current = newPreviewUrl
-    setPreviewUrl(newPreviewUrl)
+    previewUrlRef.current = nextPreviewUrl
+    setPreviewUrl(nextPreviewUrl)
+    setSelectedPhoto(file)
   }
 
   const handlePhotoSubmit = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
-    setPhotoMessage('')
-    setPhotoError('')
 
-    const file = photoInputRef.current?.files?.[0]
-    const token = localStorage.getItem('token')
-
-    if (!token) {
-      setPhotoError(
-        'Tu sesión no está disponible. Iniciá sesión nuevamente.',
-      )
+    if (!selectedPhoto) {
+      setPhotoError('Primero seleccioná una imagen.')
+      setPhotoMessage('')
       return
     }
 
-    if (!file) {
-      setPhotoError('Seleccioná una imagen antes de continuar.')
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      setPhotoError('No hay una sesión activa.')
+      setPhotoMessage('')
       return
     }
 
     setPhotoLoading(true)
+    setPhotoError('')
+    setPhotoMessage('')
 
     try {
-      const result = await uploadProfilePhoto(file, token)
-
-      setUser((currentUser) =>
-        currentUser
-          ? { ...currentUser, photoUrl: result.photoUrl }
-          : currentUser,
+      const result = await uploadProfilePhoto(
+        selectedPhoto,
+        token,
       )
 
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current)
-        previewUrlRef.current = null
+      const resultData = result as {
+        photoUrl?: string | null
+        user?: {
+          photoUrl?: string | null
+        }
       }
 
-      setPreviewUrl(null)
+      const nextPhotoUrl =
+        resultData.user?.photoUrl ??
+        resultData.photoUrl ??
+        user?.photoUrl ??
+        null
 
-      if (photoInputRef.current) {
-        photoInputRef.current.value = ''
-      }
+      setUser((previous) =>
+        previous
+          ? {
+              ...previous,
+              photoUrl: nextPhotoUrl,
+            }
+          : previous,
+      )
 
-      setPhotoMessage(result.message)
+      clearPreview()
+      setPhotoMessage('Tu foto de perfil se actualizó correctamente.')
     } catch (err) {
       setPhotoError(
         err instanceof Error
@@ -315,75 +374,88 @@ function Profile({
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
-    setMessage('')
-    setError('')
+
+    setPasswordError('')
+    setPasswordMessage('')
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setError('Completá todos los campos.')
+      setPasswordError('Completá todos los campos de contraseña.')
       return
     }
 
     if (newPassword.length < 8) {
-      setError('La nueva contraseña debe tener al menos 8 caracteres.')
+      setPasswordError(
+        'La nueva contraseña debe tener al menos 8 caracteres.',
+      )
       return
     }
 
     if (new TextEncoder().encode(newPassword).length > 72) {
-      setError('La nueva contraseña supera el límite de 72 bytes.')
+      setPasswordError(
+        'La nueva contraseña supera el límite permitido de 72 bytes.',
+      )
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Las nuevas contraseñas no coinciden.')
+      setPasswordError('Las contraseñas nuevas no coinciden.')
       return
     }
 
     if (newPassword === currentPassword) {
-      setError('La nueva contraseña debe ser diferente de la actual.')
+      setPasswordError(
+        'La nueva contraseña debe ser diferente de la actual.',
+      )
       return
     }
 
     const token = localStorage.getItem('token')
 
     if (!token) {
-      setError('Tu sesión no está disponible. Iniciá sesión nuevamente.')
+      setPasswordError('No hay una sesión activa.')
       return
     }
 
-    setLoading(true)
+    setPasswordLoading(true)
 
     try {
-      const result = await changePassword(
+      await changePassword(
         currentPassword,
         newPassword,
         token,
       )
 
-      setMessage(result.message)
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
+      setPasswordMessage('Tu contraseña se cambió correctamente.')
     } catch (err) {
-      setError(
+      setPasswordError(
         err instanceof Error
           ? err.message
           : 'No se pudo cambiar la contraseña.',
       )
     } finally {
-      setLoading(false)
+      setPasswordLoading(false)
     }
   }
 
-  const usernameInitial = user?.username?.charAt(0).toUpperCase() || 'U'
-  const isAdmin = user?.role === 'admin'
-  const isProvider = user?.role === 'provider'
-  const displayedPhoto = previewUrl || getPhotoUrl(user?.photoUrl ?? null)
+  const handleTabChange = (tab: ProfileTab) => {
+    setActiveTab(tab)
+    setProfileError('')
+    setProfileMessage('')
+    setPhotoError('')
+    setPhotoMessage('')
+    setPasswordError('')
+    setPasswordMessage('')
+  }
 
   return (
     <main className="users-page">
       <aside className="users-sidebar">
         <div className="users-brand">
           <div className="users-brand-mark">S</div>
+
           <div className="users-brand-text">
             <strong>SYSDESK</strong>
             <span>CONTROL CENTER</span>
@@ -411,17 +483,6 @@ function Profile({
             </span>
           </button>
 
-          {isAdmin && (
-            <button
-              className="users-nav-item"
-              type="button"
-              onClick={onNavigateToCreateUser}
-            >
-              <span className="users-nav-icon">＋</span>
-              <span>Crear usuario</span>
-            </button>
-          )}
-
           {isProvider && (
             <button
               className="users-nav-item"
@@ -439,16 +500,27 @@ function Profile({
             aria-current="page"
           >
             <span className="users-nav-icon">◎</span>
-            <span>Mi cuenta</span>
+            <span>Mi perfil</span>
             <span className="users-nav-indicator" />
           </button>
         </nav>
 
         <div className="users-sidebar-bottom">
+          <div className="users-sidebar-account">
+            <div className="users-avatar">
+              {usernameInitial}
+            </div>
+
+            <div className="users-sidebar-account-info">
+              <strong>{user?.username ?? 'Cargando...'}</strong>
+              <span>{user ? roleLabels[user.role] : 'Cuenta'}</span>
+            </div>
+          </div>
+
           <button
             className="users-logout"
             type="button"
-            onClick={onLogout}
+            onClick={handleLogout}
           >
             <span>↪</span>
             Cerrar sesión
@@ -461,300 +533,533 @@ function Profile({
           <div className="users-breadcrumb">
             <span>Panel</span>
             <span className="users-breadcrumb-separator">/</span>
-            <strong>Mi cuenta</strong>
+            <strong>Mi perfil</strong>
+          </div>
+
+          <div className="users-topbar-right">
+            <span className="users-live-indicator">
+              <span className="users-status-dot" />
+              Conectado
+            </span>
+
+            <div className="users-topbar-divider" />
+
+            <div className="users-topbar-account">
+              {displayedPhoto ? (
+                <img
+                  className="users-avatar"
+                  src={displayedPhoto}
+                  alt="Foto de perfil"
+                />
+              ) : (
+                <div className="users-avatar">
+                  {usernameInitial}
+                </div>
+              )}
+
+              <span>{user?.username ?? 'Usuario'}</span>
+            </div>
           </div>
         </header>
 
         <div className="users-content">
           <section className="users-welcome">
             <div>
-              <span className="users-eyebrow">CUENTA PERSONAL</span>
-              <h1>
-                Mi cuenta<span>.</span>
-              </h1>
+              <span className="users-section-eyebrow">
+                CONFIGURACIÓN DE CUENTA
+              </span>
+
+              <h1>Mi perfil.</h1>
+
               <p>
-                Actualizá tus datos personales y la seguridad de tu cuenta.
+                Administrá tu información personal y las opciones
+                de seguridad de tu cuenta.
               </p>
             </div>
           </section>
 
-          <section className="users-table-card profile-card">
-            <div className="profile-heading">
+          {profileError && activeTab === 'info' && (
+            <p
+              className="users-alert users-alert-error"
+              role="alert"
+            >
+              <span>!</span>
+              {profileError}
+            </p>
+          )}
+
+          <section className="profile-overview-card">
+            <div className="profile-overview-avatar">
               {displayedPhoto ? (
                 <img
-                  className="profile-avatar"
                   src={displayedPhoto}
-                  alt={`Foto de perfil de ${user?.username ?? 'usuario'}`}
+                  alt="Foto de perfil"
                 />
               ) : (
-                <div
-                  className="profile-avatar"
-                  aria-label="Sin foto de perfil"
-                >
-                  {usernameInitial}
-                </div>
+                <span>{usernameInitial}</span>
               )}
+            </div>
 
-              <div className="profile-heading-info">
-                <h2>{user?.username ?? 'Usuario'}</h2>
-                <p>
-                  {isAdmin
-                    ? 'Administrador'
-                    : isProvider
-                      ? 'Proveedor'
-                      : 'Usuario estándar'}
-                </p>
+            <div className="profile-overview-info">
+              <span className="users-section-eyebrow">
+                PERFIL DE USUARIO
+              </span>
+
+              <h2>{user?.username ?? 'Cargando perfil...'}</h2>
+
+              <p>
+                {user?.correo || 'No se ha registrado un correo'}
+              </p>
+
+              <div className="profile-overview-badges">
+                <span className="profile-role-badge">
+                  {user ? roleLabels[user.role] : 'Cuenta'}
+                </span>
+
                 <span className="users-account-status">
                   <span className="users-status-dot" />
-                  Cuenta activa en esta sesión
+                  Activa
                 </span>
               </div>
             </div>
 
-            <div className="profile-details">
-              <div>
-                <span>ID de usuario</span>
-                <strong>{user?.id ?? 'No disponible'}</strong>
-              </div>
-              <div>
-                <span>Rol</span>
-                <strong>
-                  {isAdmin
-                    ? 'Administrador'
-                    : isProvider
-                      ? 'Proveedor'
-                      : 'Usuario estándar'}
-                </strong>
-              </div>
+            <div className="profile-overview-id">
+              <span>ID DE CUENTA</span>
+              <strong>{user?.id ? `#${user.id}` : '—'}</strong>
             </div>
+          </section>
 
-            <div className="users-table-header">
+          <section className="profile-settings-card">
+            <div className="profile-settings-heading">
               <div>
                 <span className="users-section-eyebrow">
-                  DATOS PERSONALES
+                  AJUSTES
                 </span>
-                <h2>Información de la cuenta</h2>
+
+                <h2>Configuración del perfil</h2>
+
                 <p>
-                  {isEditingProfile
-                    ? 'Editá tus datos y guardá los cambios.'
-                    : 'Consultá tus datos personales o seleccioná Editar para modificarlos.'}
+                  Seleccioná qué parte de tu cuenta querés
+                  administrar.
                 </p>
               </div>
-
-              {!isEditingProfile && (
-                <button
-                  className="users-refresh"
-                  type="button"
-                  onClick={handleEditProfile}
-                  aria-label="Editar información de la cuenta"
-                  title="Editar perfil"
-                >
-                  ✎ Editar
-                </button>
-              )}
             </div>
 
-            <form
-              className="create-user-form"
-              onSubmit={handleProfileSubmit}
+            <div
+              className="profile-tabs"
+              role="tablist"
+              aria-label="Configuración de la cuenta"
             >
-              <label>
-                Nombre de usuario
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  autoComplete="username"
-                  maxLength={50}
-                  readOnly={!isEditingProfile}
-                  required
-                />
-              </label>
+              <button
+                className={`profile-tab ${
+                  activeTab === 'info' ? 'active' : ''
+                }`}
+                id="profile-tab-info"
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'info'}
+                aria-controls="profile-panel-info"
+                onClick={() => handleTabChange('info')}
+              >
+                <span className="profile-tab-icon">◎</span>
+                <span>Información personal</span>
+              </button>
 
-              <label>
-                Correo electrónico
-                <input
-                  type="email"
-                  value={correo}
-                  onChange={(event) => setCorreo(event.target.value)}
-                  autoComplete="email"
-                  maxLength={255}
-                  readOnly={!isEditingProfile}
-                  required
-                />
-              </label>
+              <button
+                className={`profile-tab ${
+                  activeTab === 'photo' ? 'active' : ''
+                }`}
+                id="profile-tab-photo"
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'photo'}
+                aria-controls="profile-panel-photo"
+                onClick={() => handleTabChange('photo')}
+              >
+                <span className="profile-tab-icon">▧</span>
+                <span>Foto de perfil</span>
+              </button>
 
-              {profileError && (
-                <div className="users-alert users-alert-error" role="alert">
-                  {profileError}
+              <button
+                className={`profile-tab ${
+                  activeTab === 'password' ? 'active' : ''
+                }`}
+                id="profile-tab-password"
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'password'}
+                aria-controls="profile-panel-password"
+                onClick={() => handleTabChange('password')}
+              >
+                <span className="profile-tab-icon">⌑</span>
+                <span>Cambiar contraseña</span>
+              </button>
+            </div>
+
+            {activeTab === 'info' && (
+              <div
+                className="profile-tab-panel"
+                id="profile-panel-info"
+                role="tabpanel"
+                aria-labelledby="profile-tab-info"
+              >
+                <div className="profile-panel-heading">
+                  <div>
+                    <h3>Información personal</h3>
+                    <p>
+                      Actualizá tu nombre de usuario y correo
+                      electrónico.
+                    </p>
+                  </div>
+
+                  {!isEditingProfile && (
+                    <button
+                      className="users-refresh"
+                      type="button"
+                      onClick={handleEditProfile}
+                      disabled={!user}
+                    >
+                      <span>✎</span>
+                      Editar información
+                    </button>
+                  )}
                 </div>
-              )}
 
-              {profileMessage && (
-                <div className="users-alert" role="status">
-                  {profileMessage}
-                </div>
-              )}
-
-              {isEditingProfile && (
-                <div className="create-user-actions">
-                  <button
-                    className="users-refresh"
-                    type="button"
-                    onClick={handleCancelEdit}
-                    disabled={profileLoading}
+                {profileMessage && (
+                  <p
+                    className="users-alert users-alert-success"
+                    role="status"
                   >
-                    Cancelar
-                  </button>
+                    <span>✓</span>
+                    {profileMessage}
+                  </p>
+                )}
 
-                  <button
-                    className="users-create-button"
-                    type="submit"
-                    disabled={profileLoading}
+                {profileError && (
+                  <p
+                    className="users-alert users-alert-error"
+                    role="alert"
                   >
-                    {profileLoading ? 'Guardando...' : 'Guardar cambios'}
-                  </button>
-                </div>
-              )}
-            </form>
-          </section>
+                    <span>!</span>
+                    {profileError}
+                  </p>
+                )}
 
-          <section className="users-table-card profile-card">
-            <div className="users-table-header">
-              <div>
-                <span className="users-section-eyebrow">FOTO DE PERFIL</span>
-                <h2>Imagen de tu cuenta</h2>
-                <p>
-                  Seleccioná una imagen JPG, PNG o WebP de hasta 2 MB.
-                </p>
-              </div>
-            </div>
-
-            <form
-              className="create-user-form"
-              onSubmit={handlePhotoSubmit}
-            >
-              <label>
-                Seleccionar imagen
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handlePhotoSelection}
-                />
-              </label>
-
-              {previewUrl && (
-                <div className="profile-photo-preview">
-                  <img
-                    className="profile-avatar"
-                    src={previewUrl}
-                    alt="Vista previa de la nueva foto"
-                  />
-                </div>
-              )}
-
-              {photoError && (
-                <div className="users-alert users-alert-error" role="alert">
-                  {photoError}
-                </div>
-              )}
-
-              {photoMessage && (
-                <div className="users-alert" role="status">
-                  {photoMessage}
-                </div>
-              )}
-
-              <div className="create-user-actions">
-                <button
-                  className="users-create-button"
-                  type="submit"
-                  disabled={photoLoading}
+                <form
+                  className="profile-form"
+                  onSubmit={handleProfileSubmit}
                 >
-                  {photoLoading ? 'Subiendo...' : 'Actualizar foto'}
-                </button>
+                  <div className="profile-form-grid">
+                    <label className="profile-field">
+                      <span>Nombre de usuario</span>
+
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={(event) =>
+                          setUsername(event.target.value)
+                        }
+                        readOnly={!isEditingProfile}
+                        autoComplete="username"
+                        maxLength={50}
+                        required
+                      />
+
+                      <small>
+                        Es el nombre con el que identificás tu cuenta.
+                      </small>
+                    </label>
+
+                    <label className="profile-field">
+                      <span>Correo electrónico</span>
+
+                      <input
+                        type="email"
+                        value={correo}
+                        onChange={(event) =>
+                          setCorreo(event.target.value)
+                        }
+                        readOnly={!isEditingProfile}
+                        autoComplete="email"
+                        required
+                      />
+
+                      <small>
+                        Usá una dirección de correo válida.
+                      </small>
+                    </label>
+
+                    <label className="profile-field">
+                      <span>Rol de la cuenta</span>
+
+                      <input
+                        type="text"
+                        value={user ? roleLabels[user.role] : ''}
+                        readOnly
+                      />
+
+                      <small>
+                        El rol determina los permisos disponibles.
+                      </small>
+                    </label>
+
+                    <label className="profile-field">
+                      <span>ID de usuario</span>
+
+                      <input
+                        type="text"
+                        value={user?.id ? `#${user.id}` : ''}
+                        readOnly
+                      />
+
+                      <small>
+                        Identificador asignado por el sistema.
+                      </small>
+                    </label>
+                  </div>
+
+                  {isEditingProfile && (
+                    <div className="profile-form-actions">
+                      <button
+                        className="users-secondary-button"
+                        type="button"
+                        onClick={handleCancelEdit}
+                        disabled={profileLoading}
+                      >
+                        Cancelar
+                      </button>
+
+                      <button
+                        className="users-primary-button"
+                        type="submit"
+                        disabled={profileLoading}
+                      >
+                        {profileLoading
+                          ? 'Guardando...'
+                          : 'Guardar cambios'}
+                      </button>
+                    </div>
+                  )}
+                </form>
               </div>
-            </form>
-          </section>
+            )}
 
-          <section className="users-table-card profile-card">
-            <div className="users-table-header">
-              <div>
-                <span className="users-section-eyebrow">SEGURIDAD</span>
-                <h2>Cambiar contraseña</h2>
-                <p>
-                  Usá una contraseña de al menos 8 caracteres.
-                </p>
-              </div>
-            </div>
-
-            <form
-              className="create-user-form"
-              onSubmit={handlePasswordSubmit}
-            >
-              <label>
-                Contraseña actual
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(event) =>
-                    setCurrentPassword(event.target.value)
-                  }
-                  autoComplete="current-password"
-                  required
-                />
-              </label>
-
-              <label>
-                Nueva contraseña
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                />
-              </label>
-
-              <label>
-                Confirmar nueva contraseña
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(event) =>
-                    setConfirmPassword(event.target.value)
-                  }
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                />
-              </label>
-
-              {error && (
-                <div className="users-alert users-alert-error" role="alert">
-                  {error}
+            {activeTab === 'photo' && (
+              <div
+                className="profile-tab-panel"
+                id="profile-panel-photo"
+                role="tabpanel"
+                aria-labelledby="profile-tab-photo"
+              >
+                <div className="profile-panel-heading">
+                  <div>
+                    <h3>Foto de perfil</h3>
+                    <p>
+                      Elegí una imagen para personalizar tu cuenta.
+                    </p>
+                  </div>
                 </div>
-              )}
 
-              {message && (
-                <div className="users-alert" role="status">
-                  {message}
-                </div>
-              )}
+                {photoMessage && (
+                  <p
+                    className="users-alert users-alert-success"
+                    role="status"
+                  >
+                    <span>✓</span>
+                    {photoMessage}
+                  </p>
+                )}
 
-              <div className="create-user-actions">
-                <button
-                  className="users-create-button"
-                  type="submit"
-                  disabled={loading}
+                {photoError && (
+                  <p
+                    className="users-alert users-alert-error"
+                    role="alert"
+                  >
+                    <span>!</span>
+                    {photoError}
+                  </p>
+                )}
+
+                <form
+                  className="profile-photo-form"
+                  onSubmit={handlePhotoSubmit}
                 >
-                  {loading ? 'Actualizando...' : 'Cambiar contraseña'}
-                </button>
+                  <div className="profile-photo-preview">
+                    {displayedPhoto ? (
+                      <img
+                        src={displayedPhoto}
+                        alt="Vista previa de la foto de perfil"
+                      />
+                    ) : (
+                      <span>{usernameInitial}</span>
+                    )}
+                  </div>
+
+                  <div className="profile-photo-details">
+                    <strong>Tu imagen de perfil</strong>
+
+                    <p>
+                      Seleccioná una imagen JPG, PNG o WebP.
+                      El tamaño máximo permitido es de 2 MB.
+                    </p>
+
+                    <input
+                      ref={photoInputRef}
+                      className="profile-file-input"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handlePhotoChange}
+                      aria-label="Seleccionar foto de perfil"
+                    />
+
+                    {selectedPhoto && (
+                      <span className="profile-selected-file">
+                        Archivo seleccionado: {selectedPhoto.name}
+                      </span>
+                    )}
+
+                    <div className="profile-form-actions">
+                      <button
+                        className="users-secondary-button"
+                        type="button"
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={photoLoading}
+                      >
+                        Seleccionar imagen
+                      </button>
+
+                      <button
+                        className="users-primary-button"
+                        type="submit"
+                        disabled={photoLoading || !selectedPhoto}
+                      >
+                        {photoLoading
+                          ? 'Subiendo...'
+                          : 'Guardar foto'}
+                      </button>
+                    </div>
+                  </div>
+                </form>
               </div>
-            </form>
+            )}
+
+            {activeTab === 'password' && (
+              <div
+                className="profile-tab-panel"
+                id="profile-panel-password"
+                role="tabpanel"
+                aria-labelledby="profile-tab-password"
+              >
+                <div className="profile-panel-heading">
+                  <div>
+                    <h3>Cambiar contraseña</h3>
+                    <p>
+                      Elegí una contraseña segura para proteger tu
+                      cuenta.
+                    </p>
+                  </div>
+                </div>
+
+                {passwordMessage && (
+                  <p
+                    className="users-alert users-alert-success"
+                    role="status"
+                  >
+                    <span>✓</span>
+                    {passwordMessage}
+                  </p>
+                )}
+
+                {passwordError && (
+                  <p
+                    className="users-alert users-alert-error"
+                    role="alert"
+                  >
+                    <span>!</span>
+                    {passwordError}
+                  </p>
+                )}
+
+                <form
+                  className="profile-form profile-password-form"
+                  onSubmit={handlePasswordSubmit}
+                >
+                  <label className="profile-field">
+                    <span>Contraseña actual</span>
+
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(event) =>
+                        setCurrentPassword(event.target.value)
+                      }
+                      autoComplete="current-password"
+                      placeholder="Ingresá tu contraseña actual"
+                      required
+                    />
+                  </label>
+
+                  <div className="profile-form-grid">
+                    <label className="profile-field">
+                      <span>Nueva contraseña</span>
+
+                      <input
+                        type="password"
+                        value={newPassword}
+                        onChange={(event) =>
+                          setNewPassword(event.target.value)
+                        }
+                        autoComplete="new-password"
+                        placeholder="Mínimo 8 caracteres"
+                        required
+                      />
+                    </label>
+
+                    <label className="profile-field">
+                      <span>Confirmar nueva contraseña</span>
+
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(event) =>
+                          setConfirmPassword(event.target.value)
+                        }
+                        autoComplete="new-password"
+                        placeholder="Repetí la nueva contraseña"
+                        required
+                      />
+                    </label>
+                  </div>
+
+                  <div className="profile-password-hint">
+                    <span>i</span>
+                    <p>
+                      Usá al menos 8 caracteres y evitá reutilizar
+                      tu contraseña actual.
+                    </p>
+                  </div>
+
+                  <div className="profile-form-actions">
+                    <button
+                      className="users-primary-button"
+                      type="submit"
+                      disabled={passwordLoading}
+                    >
+                      {passwordLoading
+                        ? 'Actualizando...'
+                        : 'Cambiar contraseña'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
           </section>
+
+          <footer className="users-footer">
+            <span>SYSDESK</span>
+            <span>·</span>
+            <span>Sistema de usuarios</span>
+          </footer>
         </div>
       </section>
     </main>

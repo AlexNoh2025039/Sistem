@@ -1,0 +1,167 @@
+
+/* Superficies y profundidad */
+.login-card,
+.register-card,
+.users-form-card,
+.users-table-card {
+  position: relative;
+  border-color: rgba(226, 197, 182, 0.17);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.055), transparent 42%),
+    linear-gradient(145deg, #303c4b 0%, #252f3c 65%, #202936 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    0 18px 38px rgba(0, 0, 0, 0.22);
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
+}
+
+.login-card,
+.register-card {
+  border-radius: 24px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 26px 65px rgba(0, 0, 0, 0.36),
+    0 0 45px rgba(75, 67, 84, 0.12);
+}
+
+.login-card::before,
+.register-card::before,
+.users-form-card::before,
+.users-table-card::before {
+  position: absolute;
+  top: 0;
+  left: 12%;
+  width: 76%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(226, 197, 182, 0.38),
+    transparent
+  );
+  content: "";
+  pointer-events: none;
+}
+
+.login-card:hover,
+.register-card:hover {
+  border-color: rgba(226, 197, 182, 0.27);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 30px 75px rgba(0, 0, 0, 0.4),
+    0 0 48px rgba(75, 67, 84, 0.16);
+}
+
+/* Campos */
+.login-field input,
+.login-password,
+.register-field input,
+.users-form-field input,
+.users-form-field select,
+.users-table td select {
+  border-color: rgba(195, 202, 211, 0.19);
+  background: linear-gradient(180deg, #1b232e, #222c39);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.025) inset,
+    0 3px 8px rgba(0, 0, 0, 0.12) inset;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.login-field input:focus,
+.login-password:focus-within,
+.register-field input:focus,
+.users-form-field input:focus,
+.users-form-field select:focus,
+.users-table td select:focus {
+  border-color: #b99b89;
+  background: #222c39;
+  box-shadow:
+    0 0 0 3px rgba(185, 155, 137, 0.13),
+    0 0 20px rgba(185, 155, 137, 0.055);
+}
+
+/* Botones con relieve */
+.login-submit,
+.register-submit,
+.users-create-button {
+  border: 1px solid rgba(239, 213, 199, 0.24);
+  background: linear-gradient(180deg, #a0806e, #785c50);
+  box-shadow:
+    0 4px 0 #493a34,
+    0 9px 20px rgba(0, 0, 0, 0.23),
+    0 1px 0 rgba(255, 255, 255, 0.2) inset;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.login-submit:hover:not(:disabled),
+.register-submit:hover:not(:disabled),
+.users-create-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, #b08d79, #896959);
+  box-shadow:
+    0 6px 0 #493a34,
+    0 14px 25px rgba(0, 0, 0, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.22) inset;
+}
+
+.login-submit:active:not(:disabled),
+.register-submit:active:not(:disabled),
+.users-create-button:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    0 1px 0 #493a34,
+    0 3px 8px rgba(0, 0, 0, 0.22);
+}
+
+/* Panel de administración */
+.users-topbar {
+  background: rgba(31, 39, 50, 0.86);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+
+.users-avatar {
+  background: linear-gradient(145deg, #927b91, #4b4354);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.18) inset;
+}
+
+.users-form-card,
+.users-table-card {
+  border-radius: 16px;
+}
+
+.users-table tbody tr:hover {
+  background: rgba(226, 197, 182, 0.045);
+}
+
+.users-table th {
+  background: rgba(17, 23, 31, 0.24);
+}
+
+.users-role {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset;
+}
+
+/* Accesibilidad y movimiento */
+@media (prefers-reduced-motion: reduce) {
+  .login-card,
+  .register-card,
+  .users-form-card,
+  .users-table-card,
+  .login-submit,
+  .register-submit,
+  .users-create-button {
+    transition: none;
+  }
+}

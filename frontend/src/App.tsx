@@ -12,6 +12,7 @@ import Cart from './pages/Cart'
 import Orders from './pages/Orders'
 import type { Product } from './services/api'
 import './index.css'
+import './styles/Design3D.css'
 
 type Page =
   | 'login'
@@ -236,7 +237,6 @@ function App() {
       return (
         <Users
           onLogout={handleLogout}
-          onCreateUser={() => setCurrentPage('create-user')}
           onNavigateToProfile={() => setCurrentPage('profile')}
         />
       )

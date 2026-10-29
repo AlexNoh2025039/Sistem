@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import {
   changeUserRole,
   getPhotoUrl,
@@ -16,7 +17,6 @@ interface User {
 
 interface UsersProps {
   onLogout: () => void
-  onCreateUser: () => void
   onNavigateToProfile: () => void
 }
 
@@ -30,7 +30,6 @@ const roleLabels: Record<UserRole, string> = {
 
 function Users({
   onLogout,
-  onCreateUser,
   onNavigateToProfile,
 }: UsersProps) {
   const [users, setUsers] = useState<User[]>([])
@@ -43,6 +42,12 @@ function Users({
     Record<number, UserRole>
   >({})
   const [savingRole, setSavingRole] = useState<number | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createUsername, setCreateUsername] = useState('')
+  const [createPassword, setCreatePassword] = useState('')
+  const [createRole, setCreateRole] = useState<UserRole>('user')
+  const [creatingUser, setCreatingUser] = useState(false)
+  const [createError, setCreateError] = useState('')
 
   let currentUser: User | null = null
 
@@ -142,6 +147,23 @@ function Users({
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !creatingUser) {
+        setShowCreateModal(false)
+        setCreateError('')
+      }
+    }
+
+    if (showCreateModal) {
+      window.addEventListener('keydown', handleKeyDown)
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [showCreateModal, creatingUser])
 
   const filteredUsers = users.filter((user) => {
     const searchText = search.trim().toLowerCase()
@@ -276,6 +298,76 @@ function Users({
     }
   }
 
+  const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!isAdmin) {
+      setCreateError('No tenés permisos para crear usuarios.')
+      return
+    }
+
+    const username = createUsername.trim()
+
+    if (username.length < 3) {
+      setCreateError('El nombre de usuario debe tener al menos 3 caracteres.')
+      return
+    }
+
+    if (createPassword.length < 8) {
+      setCreateError('La contraseña debe tener al menos 8 caracteres.')
+      return
+    }
+
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      setCreateError('No hay una sesión activa. Iniciá sesión nuevamente.')
+      return
+    }
+
+    setCreatingUser(true)
+    setCreateError('')
+    setError('')
+    setMessage('')
+
+    try {
+      const response = await fetch(`${API_URL}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          username,
+          password: createPassword,
+          role: createRole,
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo crear el usuario.')
+      }
+
+      setShowCreateModal(false)
+      setCreateUsername('')
+      setCreatePassword('')
+      setCreateRole('user')
+      setMessage(`El usuario "${username}" fue creado correctamente.`)
+
+      await loadUsers()
+    } catch (err) {
+      setCreateError(
+        err instanceof Error
+          ? err.message
+          : 'Ocurrió un error al crear el usuario.',
+      )
+    } finally {
+      setCreatingUser(false)
+    }
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
@@ -312,17 +404,6 @@ function Users({
             <span>Usuarios</span>
             <span className="users-nav-indicator" />
           </button>
-
-          {isAdmin && (
-            <button
-              className="users-nav-item"
-              type="button"
-              onClick={onCreateUser}
-            >
-              <span className="users-nav-icon">＋</span>
-              <span>Crear usuario</span>
-            </button>
-          )}
 
           <button
             className="users-nav-item"
@@ -417,24 +498,39 @@ function Users({
                 <p>Listado de cuentas y niveles de acceso.</p>
               </div>
 
-              <button
-                className="users-refresh"
-                type="button"
-                onClick={() => void loadUsers()}
-                disabled={loading}
-              >
-                <span
-                  className={
-                    loading
-                      ? 'users-refresh-icon spinning'
-                      : 'users-refresh-icon'
-                  }
-                >
-                  ↻
-                </span>
+              <div className="users-header-actions">
+                {isAdmin && (
+                  <button
+                    className="users-create-button"
+                    type="button"
+                    onClick={() => {
+                      setCreateError('')
+                      setShowCreateModal(true)
+                    }}
+                  >
+                    <span aria-hidden="true">＋</span>
+                    Crear usuario
+                  </button>
+                )}
 
-                {loading ? 'Actualizando...' : 'Actualizar'}
-              </button>
+                <button
+                  className="users-refresh"
+                  type="button"
+                  onClick={() => void loadUsers()}
+                  disabled={loading}
+                >
+                  <span
+                    className={
+                      loading
+                        ? 'users-refresh-icon spinning'
+                        : 'users-refresh-icon'
+                    }
+                  >
+                    ↻
+                  </span>
+                  {loading ? 'Actualizando...' : 'Actualizar'}
+                </button>
+              </div>
             </div>
 
             <div className="users-table-toolbar">
@@ -649,6 +745,135 @@ function Users({
           </footer>
         </div>
       </section>
+
+      {showCreateModal && isAdmin && (
+        <div
+          className="users-modal-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !creatingUser) {
+              setShowCreateModal(false)
+              setCreateError('')
+            }
+          }}
+        >
+          <section
+            className="users-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="users-modal-title"
+          >
+            <header className="users-modal-header">
+              <div className="users-modal-heading">
+                <div className="users-modal-icon" aria-hidden="true">
+                  ＋
+                </div>
+
+                <div>
+                  <span className="users-section-eyebrow">
+                    NUEVA CUENTA
+                  </span>
+                  <h2 id="users-modal-title">Crear usuario</h2>
+                  <p>Agregá una cuenta al directorio de SYSDESK.</p>
+                </div>
+              </div>
+
+              <button
+                className="users-modal-close"
+                type="button"
+                onClick={() => {
+                  setShowCreateModal(false)
+                  setCreateError('')
+                }}
+                disabled={creatingUser}
+                aria-label="Cerrar ventana"
+              >
+                ×
+              </button>
+            </header>
+
+            <form
+              className="users-modal-form"
+              onSubmit={handleCreateUser}
+            >
+              {createError && (
+                <p className="users-alert users-alert-error" role="alert">
+                  {createError}
+                </p>
+              )}
+
+              <label className="users-modal-field">
+                <span>Nombre de usuario</span>
+                <input
+                  type="text"
+                  value={createUsername}
+                  onChange={(event) => setCreateUsername(event.target.value)}
+                  placeholder="Ej. usuario01"
+                  minLength={3}
+                  maxLength={50}
+                  autoComplete="off"
+                  required
+                  disabled={creatingUser}
+                  autoFocus
+                />
+              </label>
+
+              <label className="users-modal-field">
+                <span>Contraseña</span>
+                <input
+                  type="password"
+                  value={createPassword}
+                  onChange={(event) => setCreatePassword(event.target.value)}
+                  placeholder="Mínimo 8 caracteres"
+                  minLength={8}
+                  autoComplete="new-password"
+                  required
+                  disabled={creatingUser}
+                />
+                <small>
+                  Usá al menos 8 caracteres para la contraseña.
+                </small>
+              </label>
+
+              <label className="users-modal-field">
+                <span>Rol y permisos</span>
+                <select
+                  value={createRole}
+                  onChange={(event) =>
+                    setCreateRole(event.target.value as UserRole)
+                  }
+                  disabled={creatingUser}
+                >
+                  <option value="user">Usuario</option>
+                  <option value="provider">Proveedor</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </label>
+
+              <div className="users-modal-actions">
+                <button
+                  className="users-refresh"
+                  type="button"
+                  onClick={() => {
+                    setShowCreateModal(false)
+                    setCreateError('')
+                  }}
+                  disabled={creatingUser}
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  className="users-create-button"
+                  type="submit"
+                  disabled={creatingUser}
+                >
+                  {creatingUser ? 'Creando...' : 'Crear cuenta'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   )
 }
