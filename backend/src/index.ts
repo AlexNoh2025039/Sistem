@@ -28,6 +28,7 @@ import {
   adminOnly,
   providerOnly,
   userOnly,
+  requirePermission,
 } from './middlewares/authMiddleware.js';
 
 import {
@@ -57,6 +58,13 @@ import {
   listMyOrders,
 } from './controllers/orderController.js';
 
+import {
+  getRolePermissions,
+  updateRolePermissions,
+  getUserPermissions,
+  updateUserPermissions,
+} from './controllers/permissionController.js';
+
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -67,6 +75,7 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(uploadDirectory));
 
+// Procesamiento de imágenes de perfil.
 const handleProfilePhotoUpload = (
   req: express.Request,
   res: express.Response,
@@ -95,6 +104,7 @@ const handleProfilePhotoUpload = (
   });
 };
 
+// Procesamiento de imágenes de productos.
 const handleProductImageUpload = (
   req: express.Request,
   res: express.Response,
@@ -123,21 +133,79 @@ const handleProductImageUpload = (
   });
 };
 
+// Estado de la API.
 app.get('/api/health', (_req, res) => {
   res.json({ message: 'API is running' });
 });
 
-// Autenticación y registro público
+// Autenticación y registro público.
 app.post('/api/login', loginUser);
 app.post('/api/register', registerUser);
 
-// Administración de usuarios
-app.post('/api/admin/users', verifyToken, adminOnly, registerUser);
-app.get('/api/users', verifyToken, adminOnly, listUsers);
-app.delete('/api/users/:id', verifyToken, adminOnly, deleteUser);
-app.patch('/api/users/:id/role', verifyToken, adminOnly, changeUserRole);
+// Administración de usuarios.
+app.post(
+  '/api/admin/users',
+  verifyToken,
+  adminOnly,
+  requirePermission('users.create'),
+  registerUser,
+);
 
-// Perfil personal
+app.get(
+  '/api/users',
+  verifyToken,
+  adminOnly,
+  requirePermission('users.view'),
+  listUsers,
+);
+
+app.delete(
+  '/api/users/:id',
+  verifyToken,
+  adminOnly,
+  requirePermission('users.delete'),
+  deleteUser,
+);
+
+app.patch(
+  '/api/users/:id/role',
+  verifyToken,
+  adminOnly,
+  requirePermission('users.role.change'),
+  changeUserRole,
+);
+
+// Administración de permisos por rol.
+app.get(
+  '/api/admin/permissions',
+  verifyToken,
+  adminOnly,
+  getRolePermissions,
+);
+
+app.put(
+  '/api/admin/permissions',
+  verifyToken,
+  adminOnly,
+  updateRolePermissions,
+);
+
+// Administración de permisos individuales.
+app.get(
+  '/api/admin/users/:id/permissions',
+  verifyToken,
+  adminOnly,
+  getUserPermissions,
+);
+
+app.put(
+  '/api/admin/users/:id/permissions',
+  verifyToken,
+  adminOnly,
+  updateUserPermissions,
+);
+
+// Perfil personal.
 app.get('/api/profile', verifyToken, getProfile);
 app.patch('/api/profile', verifyToken, updateProfile);
 app.patch('/api/profile/password', verifyToken, changePassword);
@@ -149,7 +217,7 @@ app.post(
   saveProfilePhoto,
 );
 
-// Perfil comercial del proveedor
+// Perfil comercial del proveedor.
 app.get(
   '/api/provider/profile',
   verifyToken,
@@ -164,22 +232,22 @@ app.put(
   saveProviderProfile,
 );
 
-// Catálogo público
+// Catálogo público.
 app.get('/api/products', listProducts);
 app.get('/api/products/:id', getProductById);
 
-// Administración de productos del proveedor
+// Productos propios del administrador o proveedor.
 app.get(
   '/api/provider/products',
   verifyToken,
-  providerOnly,
+  requirePermission('products.view'),
   listMyProducts,
 );
 
 app.post(
   '/api/provider/products',
   verifyToken,
-  providerOnly,
+  requirePermission('products.publish'),
   handleProductImageUpload,
   createProduct,
 );
@@ -187,7 +255,7 @@ app.post(
 app.put(
   '/api/provider/products/:id',
   verifyToken,
-  providerOnly,
+  requirePermission('products.edit'),
   handleProductImageUpload,
   updateProduct,
 );
@@ -195,24 +263,53 @@ app.put(
 app.patch(
   '/api/provider/products/:id/deactivate',
   verifyToken,
-  providerOnly,
+  requirePermission('products.deactivate'),
   deactivateProduct,
 );
 
-// Carrito y compras de usuarios
-app.get('/api/cart', verifyToken, userOnly, getCart);
-app.post('/api/cart/items', verifyToken, userOnly, addCartItem);
+// Carrito y compras.
+app.get(
+  '/api/cart',
+  verifyToken,
+  userOnly,
+  requirePermission('cart.manage'),
+  getCart,
+);
+
+app.post(
+  '/api/cart/items',
+  verifyToken,
+  userOnly,
+  requirePermission('cart.manage'),
+  addCartItem,
+);
 
 app.delete(
   '/api/cart/items/:productId',
   verifyToken,
   userOnly,
+  requirePermission('cart.manage'),
   removeCartItem,
 );
 
-app.post('/api/orders/checkout', verifyToken, userOnly, checkout);
-app.get('/api/orders', verifyToken, userOnly, listMyOrders);
+// Pedidos.
+app.post(
+  '/api/orders/checkout',
+  verifyToken,
+  userOnly,
+  requirePermission('orders.create'),
+  checkout,
+);
 
+app.get(
+  '/api/orders',
+  verifyToken,
+  userOnly,
+  requirePermission('orders.view'),
+  listMyOrders,
+);
+
+// Inicio del servidor.
 const startServer = async () => {
   try {
     await pool.query('SELECT 1');

@@ -4,6 +4,30 @@ const SERVER_URL = 'http://localhost:3000'
 
 export type UserRole = 'admin' | 'user' | 'provider'
 
+export interface RolePermission {
+  role: UserRole
+  permission_key: string
+  allowed: boolean
+  actualizado_en?: string
+}
+
+export interface UserPermission {
+  permission_key: string
+  role_allowed: boolean | null
+  override_allowed: boolean | null
+  effective_allowed: boolean
+  source: 'individual' | 'initial'
+}
+
+export interface UserPermissionsResponse {
+  user: {
+    id: number
+    username: string
+    role: UserRole
+  }
+  permissions: UserPermission[]
+}
+
 export interface ManagedUser {
   id: number
   username: string
@@ -243,6 +267,70 @@ export async function deleteUser(
   return readResponse<{ message: string }>(response)
 }
 
+// ADMINISTRACIÓN DE PERMISOS POR ROL
+
+export async function getRolePermissions(
+  token: string,
+): Promise<RolePermission[]> {
+  const response = await fetch(`${API_URL}/admin/permissions`, {
+    headers: authHeaders(token),
+  })
+
+  return readResponse<RolePermission[]>(response)
+}
+
+export async function updateRolePermissions(
+  permissions: RolePermission[],
+  token: string,
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_URL}/admin/permissions`, {
+    method: 'PUT',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ permissions }),
+  })
+
+  return readResponse<{ message: string }>(response)
+}
+
+// ADMINISTRACIÓN DE PERMISOS INDIVIDUALES
+
+export async function getUserPermissions(
+  userId: number,
+  token: string,
+): Promise<UserPermissionsResponse> {
+  const response = await fetch(
+    `${API_URL}/admin/users/${userId}/permissions`,
+    {
+      headers: authHeaders(token),
+    },
+  )
+
+  return readResponse<UserPermissionsResponse>(response)
+}
+
+export async function updateUserPermissions(
+  userId: number,
+  permissions: { permission_key: string; allowed: boolean }[],
+  token: string,
+): Promise<{ message: string }> {
+  const response = await fetch(
+    `${API_URL}/admin/users/${userId}/permissions`,
+    {
+      method: 'PUT',
+      headers: {
+        ...authHeaders(token),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ permissions }),
+    },
+  )
+
+  return readResponse<{ message: string }>(response)
+}
+
 // PERFIL DE USUARIO
 
 export async function getProfile(token: string): Promise<ProfileUser> {
@@ -274,8 +362,6 @@ export async function updateProfile(
     { message: string; user?: ProfileUser } & Partial<ProfileUser>
   >(response)
 
-  // Acepta una respuesta que devuelva el usuario dentro de "user"
-  // o directamente en el objeto de respuesta.
   const updatedUser = data.user ?? data
 
   if (
@@ -380,7 +466,10 @@ export async function getProductById(id: number): Promise<Product> {
   return readResponse<Product>(response)
 }
 
-function buildProductFormData(product: ProductInput, image?: File | null): FormData {
+function buildProductFormData(
+  product: ProductInput,
+  image?: File | null,
+): FormData {
   const formData = new FormData()
 
   formData.append('nombre', product.nombre)

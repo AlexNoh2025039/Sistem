@@ -1,6 +1,6 @@
 
 import { useState, type FormEvent } from 'react'
-import { registerUser } from '../services/api'
+import { createAdminUser } from '../services/api'
 import '../styles/Users.css'
 
 interface CreateUserProps {
@@ -57,7 +57,7 @@ function CreateUser({
     setLoading(true)
 
     try {
-      await registerUser(cleanUsername, password, token)
+      await createAdminUser(cleanUsername, password, token)
 
       setMessage('El usuario se creó correctamente.')
       setUsername('')

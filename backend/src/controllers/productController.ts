@@ -1,14 +1,19 @@
 
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import pool from '../db/connection.js';
 
-const getProviderId = async (userId: number): Promise<number | null> => {
+// Obtener o crear el registro de proveedor del usuario.
+const getProviderId = async (userId: number): Promise<number> => {
   const result = await pool.query(
-    'SELECT id FROM proveedores WHERE usuario_id = $1',
+    `INSERT INTO proveedores (usuario_id)
+     VALUES ($1)
+     ON CONFLICT (usuario_id)
+     DO UPDATE SET usuario_id = EXCLUDED.usuario_id
+     RETURNING id`,
     [userId],
   );
 
-  return result.rows[0]?.id ?? null;
+  return result.rows[0].id;
 };
 
 const getProductImage = (req: Request): string | null => {
@@ -21,6 +26,7 @@ const getProductImage = (req: Request): string | null => {
     : null;
 };
 
+// Obtener todos los productos activos del catálogo público.
 export const listProducts = async (req: Request, res: Response) => {
   const { categoria, search } = req.query;
 
@@ -51,12 +57,14 @@ export const listProducts = async (req: Request, res: Response) => {
     return res.json(result.rows);
   } catch (error) {
     console.error('Error listing products:', error);
+
     return res.status(500).json({
       error: 'No se pudieron obtener los productos.',
     });
   }
 };
 
+// Obtener un producto por su ID.
 export const getProductById = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
 
@@ -87,21 +95,17 @@ export const getProductById = async (req: Request, res: Response) => {
     return res.json(result.rows[0]);
   } catch (error) {
     console.error('Error retrieving product:', error);
+
     return res.status(500).json({
       error: 'No se pudo obtener el producto.',
     });
   }
 };
 
+// Obtener los productos propios del usuario autenticado.
 export const listMyProducts = async (req: Request, res: Response) => {
   try {
     const providerId = await getProviderId(req.user!.id);
-
-    if (!providerId) {
-      return res.status(404).json({
-        error: 'No se encontró el registro del proveedor.',
-      });
-    }
 
     const result = await pool.query(
       `SELECT p.id, p.proveedor_id, p.nombre, p.descripcion,
@@ -116,13 +120,15 @@ export const listMyProducts = async (req: Request, res: Response) => {
 
     return res.json(result.rows);
   } catch (error) {
-    console.error('Error listing provider products:', error);
+    console.error('Error listing user products:', error);
+
     return res.status(500).json({
       error: 'No se pudieron obtener tus productos.',
     });
   }
 };
 
+// Crear un producto para el usuario autenticado.
 export const createProduct = async (req: Request, res: Response) => {
   const {
     nombre,
@@ -153,13 +159,6 @@ export const createProduct = async (req: Request, res: Response) => {
 
   try {
     const providerId = await getProviderId(req.user!.id);
-
-    if (!providerId) {
-      return res.status(409).json({
-        error: 'No se encontró el registro del proveedor.',
-      });
-    }
-
     const imagenProducto = getProductImage(req);
 
     const result = await pool.query(
@@ -187,12 +186,14 @@ export const createProduct = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error creating product:', error);
+
     return res.status(500).json({
       error: 'No se pudo crear el producto.',
     });
   }
 };
 
+// Actualizar un producto propio.
 export const updateProduct = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
 
@@ -227,13 +228,6 @@ export const updateProduct = async (req: Request, res: Response) => {
 
   try {
     const providerId = await getProviderId(req.user!.id);
-
-    if (!providerId) {
-      return res.status(409).json({
-        error: 'Perfil de proveedor no encontrado.',
-      });
-    }
-
     const imagenProducto = getProductImage(req);
 
     const result = await pool.query(
@@ -245,7 +239,7 @@ export const updateProduct = async (req: Request, res: Response) => {
            modelo = $5,
            precio = $6,
            existencias = $7,
-           imagen_url = $8,
+           imagen_url = COALESCE($8, imagen_url),
            actualizado_en = NOW()
        WHERE id = $9
          AND proveedor_id = $10
@@ -277,12 +271,14 @@ export const updateProduct = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error updating product:', error);
+
     return res.status(500).json({
       error: 'No se pudo actualizar el producto.',
     });
   }
 };
 
+// Desactivar un producto propio.
 export const deactivateProduct = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
 
@@ -294,12 +290,6 @@ export const deactivateProduct = async (req: Request, res: Response) => {
 
   try {
     const providerId = await getProviderId(req.user!.id);
-
-    if (!providerId) {
-      return res.status(409).json({
-        error: 'Perfil de proveedor no encontrado.',
-      });
-    }
 
     const result = await pool.query(
       `UPDATE productos
@@ -323,6 +313,7 @@ export const deactivateProduct = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error deactivating product:', error);
+
     return res.status(500).json({
       error: 'No se pudo desactivar el producto.',
     });
