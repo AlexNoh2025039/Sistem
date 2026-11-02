@@ -1,8 +1,10 @@
+
 const API_URL = (
   import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 ).replace(/\/$/, '')
 
 const SERVER_URL = API_URL.replace(/\/api$/, '')
+
 export type UserRole = 'admin' | 'user' | 'provider'
 
 export interface RolePermission {
@@ -189,13 +191,16 @@ export function getPhotoUrl(photoPath: string | null): string | null {
 // AUTENTICACIÓN
 
 export async function loginUser(
-  username: string,
+  identifier: string,
   password: string,
 ): Promise<LoginResponse> {
   const response = await fetch(`${API_URL}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: username.trim(), password }),
+    body: JSON.stringify({
+      identifier: identifier.trim(),
+      password,
+    }),
   })
 
   return readResponse<LoginResponse>(response)
@@ -203,12 +208,17 @@ export async function loginUser(
 
 export async function registerUser(
   username: string,
+  correo: string,
   password: string,
 ): Promise<RegisterResponse> {
   const response = await fetch(`${API_URL}/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: username.trim(), password }),
+    body: JSON.stringify({
+      username: username.trim(),
+      correo: correo.trim().toLowerCase(),
+      password,
+    }),
   })
 
   return readResponse<RegisterResponse>(response)

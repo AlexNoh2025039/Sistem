@@ -12,6 +12,7 @@ if (!JWT_SECRET) {
 }
 
 const validRoles: UserRole[] = ['admin', 'user', 'provider'];
+
 const rolePermissionKeys: Record<UserRole, string[]> = {
   admin: [
     'users.view',
@@ -44,24 +45,43 @@ const rolePermissionKeys: Record<UserRole, string[]> = {
 
 // Registrar un usuario o crear una cuenta desde el panel administrativo.
 export const registerUser = async (req: Request, res: Response) => {
-  const { username, password } = req.body ?? {};
+  const { username, correo, password } = req.body ?? {};
+
+  const isAdminCreation = req.user?.rol === 'admin';
 
   const role: UserRole =
-    req.user?.rol === 'admin' && validRoles.includes(req.body?.role)
+    isAdminCreation && validRoles.includes(req.body?.role)
       ? req.body.role
       : 'user';
 
+  const cleanUsername =
+    typeof username === 'string' ? username.trim() : '';
+
+  const cleanEmail =
+    typeof correo === 'string' ? correo.trim().toLowerCase() : '';
+
   if (
-    typeof username !== 'string' ||
+    !cleanUsername ||
+    cleanUsername.length > 50 ||
     typeof password !== 'string' ||
-    username.trim().length < 1 ||
-    username.trim().length > 50 ||
     password.length < 8 ||
     Buffer.byteLength(password, 'utf8') > 72
   ) {
     return res.status(400).json({
       error:
         'El usuario debe tener entre 1 y 50 caracteres y la contraseña al menos 8 caracteres, con un máximo de 72 bytes.',
+    });
+  }
+
+  // El registro público requiere correo; el panel administrativo puede omitirlo.
+  if (
+    (!isAdminCreation && !cleanEmail) ||
+    (cleanEmail &&
+      (cleanEmail.length > 150 ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)))
+  ) {
+    return res.status(400).json({
+      error: 'Ingresa un correo electrónico válido.',
     });
   }
 
@@ -73,10 +93,10 @@ export const registerUser = async (req: Request, res: Response) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const result = await client.query(
-      `INSERT INTO usuarios (username, password, rol)
-       VALUES ($1, $2, $3)
-       RETURNING id, username, rol AS role, saldo`,
-      [username.trim(), passwordHash, role],
+      `INSERT INTO usuarios (username, correo, password, rol)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, username, correo, rol AS role, saldo`,
+      [cleanUsername, cleanEmail || null, passwordHash, role],
     );
 
     const newUser = result.rows[0];
@@ -106,6 +126,17 @@ export const registerUser = async (req: Request, res: Response) => {
       'code' in error &&
       error.code === '23505'
     ) {
+      const constraint =
+        'constraint' in error && typeof error.constraint === 'string'
+          ? error.constraint
+          : '';
+
+      if (constraint.includes('correo')) {
+        return res.status(409).json({
+          error: 'Ese correo electrónico ya está registrado.',
+        });
+      }
+
       return res.status(409).json({
         error: 'Ese nombre de usuario ya existe.',
       });
@@ -121,18 +152,21 @@ export const registerUser = async (req: Request, res: Response) => {
   }
 };
 
-// Iniciar sesión.
+// Iniciar sesión con nombre de usuario o correo electrónico.
 export const loginUser = async (req: Request, res: Response) => {
-  const { username, password } = req.body ?? {};
+  const { identifier, username, password } = req.body ?? {};
 
-  if (
-    typeof username !== 'string' ||
-    typeof password !== 'string' ||
-    !username.trim() ||
-    !password
-  ) {
+  // Se conserva username como alternativa para clientes anteriores.
+  const loginIdentifier =
+    typeof identifier === 'string'
+      ? identifier.trim()
+      : typeof username === 'string'
+        ? username.trim()
+        : '';
+
+  if (!loginIdentifier || typeof password !== 'string' || !password) {
     return res.status(400).json({
-      error: 'Ingresa un nombre de usuario y una contraseña válidos.',
+      error: 'Ingresa tu correo o nombre de usuario y tu contraseña.',
     });
   }
 
@@ -140,13 +174,19 @@ export const loginUser = async (req: Request, res: Response) => {
     const result = await pool.query(
       `SELECT id, username, password, rol, saldo
        FROM usuarios
-       WHERE username = $1`,
-      [username.trim()],
+       WHERE LOWER(username) = LOWER($1)
+          OR LOWER(correo) = LOWER($1)
+       ORDER BY CASE
+         WHEN LOWER(username) = LOWER($1) THEN 0
+         ELSE 1
+       END
+       LIMIT 1`,
+      [loginIdentifier],
     );
 
     if (result.rows.length === 0) {
       return res.status(401).json({
-        error: 'Usuario o contraseña incorrectos.',
+        error: 'Usuario, correo o contraseña incorrectos.',
       });
     }
 
@@ -155,7 +195,7 @@ export const loginUser = async (req: Request, res: Response) => {
 
     if (!passwordValid) {
       return res.status(401).json({
-        error: 'Usuario o contraseña incorrectos.',
+        error: 'Usuario, correo o contraseña incorrectos.',
       });
     }
 
@@ -462,10 +502,11 @@ export const updateManagedUser = async (req: Request, res: Response) => {
     });
   }
 
-  if (role !== undefined && (
-    typeof role !== 'string' ||
-    !validRoles.includes(role as UserRole)
-  )) {
+  if (
+    role !== undefined &&
+    (typeof role !== 'string' ||
+      !validRoles.includes(role as UserRole))
+  ) {
     return res.status(400).json({
       error: 'El rol debe ser admin, user o provider.',
     });

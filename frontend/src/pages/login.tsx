@@ -13,7 +13,7 @@ function Login({
   onLoginSuccess,
   onNavigateToRegister,
 }: LoginProps) {
-  const [username, setUsername] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -25,7 +25,7 @@ function Login({
     setLoading(true)
 
     try {
-      const data = await loginUser(username.trim(), password)
+      const data = await loginUser(identifier.trim(), password)
 
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
@@ -92,14 +92,16 @@ function Login({
 
         <form className="login-form" onSubmit={handleSubmit}>
           <div className="login-field">
-            <label htmlFor="username">Nombre de usuario</label>
+            <label htmlFor="identifier">
+              Correo electrónico o nombre de usuario
+            </label>
             <input
-              id="username"
+              id="identifier"
               type="text"
-              placeholder="Ingresá tu usuario"
+              placeholder="Ingresá tu correo o usuario"
               autoComplete="username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              value={identifier}
+              onChange={(event) => setIdentifier(event.target.value)}
               required
             />
           </div>

@@ -9,6 +9,7 @@ interface RegisterProps {
 
 function Register({ onBackToLogin }: RegisterProps) {
   const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -22,14 +23,25 @@ function Register({ onBackToLogin }: RegisterProps) {
     setMessage('')
 
     const cleanUsername = username.trim()
+    const cleanEmail = email.trim().toLowerCase()
 
-    if (!cleanUsername || !password || !confirmPassword) {
+    if (!cleanUsername || !cleanEmail || !password || !confirmPassword) {
       setError('Completá todos los campos.')
       return
     }
 
     if (cleanUsername.length < 3 || cleanUsername.length > 50) {
       setError('El nombre de usuario debe tener entre 3 y 50 caracteres.')
+      return
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError('Ingresá un correo electrónico válido.')
+      return
+    }
+
+    if (cleanEmail.length > 150) {
+      setError('El correo electrónico no puede superar los 150 caracteres.')
       return
     }
 
@@ -51,10 +63,11 @@ function Register({ onBackToLogin }: RegisterProps) {
     setLoading(true)
 
     try {
-      await registerUser(cleanUsername, password)
+      await registerUser(cleanUsername, cleanEmail, password)
 
       setMessage('¡Cuenta creada correctamente! Ya podés iniciar sesión.')
       setUsername('')
+      setEmail('')
       setPassword('')
       setConfirmPassword('')
     } catch (err) {
@@ -89,6 +102,20 @@ function Register({ onBackToLogin }: RegisterProps) {
               minLength={3}
               maxLength={50}
               autoComplete="username"
+              required
+            />
+          </div>
+
+          <div className="register-field">
+            <label htmlFor="register-email">Correo electrónico</label>
+            <input
+              id="register-email"
+              type="email"
+              placeholder="Ingresá tu correo electrónico"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              maxLength={150}
+              autoComplete="email"
               required
             />
           </div>
