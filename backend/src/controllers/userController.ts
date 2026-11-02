@@ -73,12 +73,10 @@ export const registerUser = async (req: Request, res: Response) => {
     });
   }
 
-  // El registro público requiere correo; el panel administrativo puede omitirlo.
   if (
-    (!isAdminCreation && !cleanEmail) ||
-    (cleanEmail &&
-      (cleanEmail.length > 150 ||
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)))
+    !cleanEmail ||
+    cleanEmail.length > 150 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)
   ) {
     return res.status(400).json({
       error: 'Ingresa un correo electrónico válido.',
@@ -96,7 +94,7 @@ export const registerUser = async (req: Request, res: Response) => {
       `INSERT INTO usuarios (username, correo, password, rol)
        VALUES ($1, $2, $3, $4)
        RETURNING id, username, correo, rol AS role, saldo`,
-      [cleanUsername, cleanEmail || null, passwordHash, role],
+      [cleanUsername, cleanEmail, passwordHash, role],
     );
 
     const newUser = result.rows[0];
@@ -231,7 +229,7 @@ export const loginUser = async (req: Request, res: Response) => {
 export const listUsers = async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT id, username, rol AS role, saldo
+      `SELECT id, username, correo, rol AS role, saldo
        FROM usuarios
        ORDER BY id`,
     );
@@ -426,7 +424,7 @@ export const changeUserRole = async (req: Request, res: Response) => {
       `UPDATE usuarios
        SET rol = $1
        WHERE id = $2
-       RETURNING id, username, rol AS role, saldo`,
+       RETURNING id, username, correo, rol AS role, saldo`,
       [newRole, id],
     );
 
@@ -469,8 +467,9 @@ export const changeUserRole = async (req: Request, res: Response) => {
 
 export const updateManagedUser = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  const { username, password, role } = req.body ?? {};
+  const { username, correo, password, role } = req.body ?? {};
   const updatesUsername = username !== undefined;
+  const updatesEmail = correo !== undefined;
   const updatesPassword = password !== undefined;
   const updatesRole = role !== undefined;
 
@@ -488,6 +487,17 @@ export const updateManagedUser = async (req: Request, res: Response) => {
   ) {
     return res.status(400).json({
       error: 'El nombre de usuario debe tener entre 1 y 50 caracteres.',
+    });
+  }
+
+  if (
+    updatesEmail &&
+    (typeof correo !== 'string' ||
+      correo.trim().length > 150 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim()))
+  ) {
+    return res.status(400).json({
+      error: 'Ingresa un correo electrónico válido.',
     });
   }
 
@@ -512,7 +522,7 @@ export const updateManagedUser = async (req: Request, res: Response) => {
     });
   }
 
-  if (!updatesUsername && !updatesPassword && !updatesRole) {
+  if (!updatesUsername && !updatesEmail && !updatesPassword && !updatesRole) {
     return res.status(400).json({
       error: 'Debes indicar al menos un dato para actualizar.',
     });
@@ -546,7 +556,7 @@ export const updateManagedUser = async (req: Request, res: Response) => {
     const newRole: UserRole =
       (role as UserRole | undefined) ?? (targetUser.rol as UserRole);
 
-    if (updatesUsername || updatesPassword) {
+    if (updatesUsername || updatesEmail || updatesPassword) {
       const permission = await client.query(
         `SELECT COALESCE(
            (SELECT allowed
@@ -632,11 +642,18 @@ export const updateManagedUser = async (req: Request, res: Response) => {
     const result = await client.query(
       `UPDATE usuarios
        SET username = COALESCE($1, username),
-           password = COALESCE($2, password),
-           rol = $3
-       WHERE id = $4
-       RETURNING id, username, rol AS role, saldo`,
-      [updatesUsername ? username.trim() : null, passwordHash, newRole, id],
+           correo = COALESCE($2, correo),
+           password = COALESCE($3, password),
+           rol = $4
+       WHERE id = $5
+       RETURNING id, username, correo, rol AS role, saldo`,
+      [
+        updatesUsername ? username.trim() : null,
+        updatesEmail ? correo.trim().toLowerCase() : null,
+        passwordHash,
+        newRole,
+        id,
+      ],
     );
 
     if (role !== undefined && newRole !== targetUser.rol) {
@@ -672,8 +689,15 @@ export const updateManagedUser = async (req: Request, res: Response) => {
       'code' in error &&
       error.code === '23505'
     ) {
+      const constraint =
+        'constraint' in error && typeof error.constraint === 'string'
+          ? error.constraint
+          : '';
+
       return res.status(409).json({
-        error: 'Ese nombre de usuario ya existe.',
+        error: constraint.includes('correo')
+          ? 'Ese correo electrónico ya está registrado.'
+          : 'Ese nombre de usuario ya existe.',
       });
     }
 

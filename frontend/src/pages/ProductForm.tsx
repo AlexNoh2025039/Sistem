@@ -2,13 +2,14 @@
 import { useEffect, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { createProduct, getPhotoUrl, updateProduct } from '../services/api'
-import type { Product, ProductInput } from '../services/api'
+import type { Product, ProductInput, UserRole } from '../services/api'
 import AdminSidebar from '../components/AdminSidebar'
 import '../styles/ProductForm.css'
 
 interface AdminNavigation {
   canViewProducts: boolean
   onNavigateToUsers: () => void
+  onNavigateToUserRole?: (role: UserRole) => void
   onNavigateToRolePermissions: () => void
   onNavigateToProfile: () => void
   onLogout: () => void
@@ -202,6 +203,7 @@ function ProductForm({
           activePage="product-form"
           canViewProducts={adminNavigation.canViewProducts}
           onNavigateToUsers={adminNavigation.onNavigateToUsers}
+          onNavigateToUserRole={adminNavigation.onNavigateToUserRole}
           onNavigateToProducts={onBack}
           onNavigateToRolePermissions={
             adminNavigation.onNavigateToRolePermissions

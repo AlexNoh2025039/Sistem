@@ -9,15 +9,14 @@ import {
   getUsers,
   updateManagedUser,
 } from '../services/api';
-import type { ManagedUserUpdate } from '../services/api';
+import type { ManagedUserUpdate, UserRole } from '../services/api';
 import AdminSidebar from '../components/AdminSidebar';
 import '../styles/Users.css';
-
-type UserRole = 'admin' | 'user' | 'provider';
 
 interface User {
   id: number;
   username: string;
+  correo: string | null;
   role: UserRole;
 }
 
@@ -26,6 +25,8 @@ interface UsersProps {
   onNavigateToProfile: () => void;
   onNavigateToRolePermissions: () => void;
   onNavigateToProducts: () => void;
+  onNavigateToUserRole: (role: UserRole) => void;
+  userRole: UserRole;
   canViewProducts: boolean;
   permissions: Record<string, boolean>;
 }
@@ -36,11 +37,19 @@ const roleLabels: Record<UserRole, string> = {
   provider: 'Proveedor',
 };
 
+const rolePluralLabels: Record<UserRole, string> = {
+  admin: 'administradores',
+  user: 'usuarios',
+  provider: 'proveedores',
+};
+
 function Users({
   onLogout,
   onNavigateToProfile,
   onNavigateToRolePermissions,
   onNavigateToProducts,
+  onNavigateToUserRole,
+  userRole,
   canViewProducts,
   permissions,
 }: UsersProps) {
@@ -58,12 +67,14 @@ function Users({
   const [savingRole, setSavingRole] = useState<number | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createUsername, setCreateUsername] = useState('');
+  const [createEmail, setCreateEmail] = useState('');
   const [createPassword, setCreatePassword] = useState('');
   const [createRole, setCreateRole] = useState<UserRole>('user');
   const [creatingUser, setCreatingUser] = useState(false);
   const [createError, setCreateError] = useState('');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editUsername, setEditUsername] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('user');
   const [savingUser, setSavingUser] = useState(false);
@@ -201,11 +212,13 @@ function Users({
     }
   }, [canCreateUsers]);
 
-  const filteredUsers = users.filter((user) => {
+  const usersForRole = users.filter((user) => user.role === userRole);
+  const filteredUsers = usersForRole.filter((user) => {
     const searchText = search.trim().toLowerCase();
 
     return (
       user.username.toLowerCase().includes(searchText) ||
+      (user.correo ?? '').toLowerCase().includes(searchText) ||
       String(user.id).includes(searchText) ||
       roleLabels[user.role].toLowerCase().includes(searchText)
     );
@@ -320,6 +333,7 @@ function Users({
   const openEditUser = (user: User) => {
     setEditingUser(user);
     setEditUsername(user.username);
+    setEditEmail(user.correo ?? '');
     setEditPassword('');
     setEditRole(selectedRoles[user.id] ?? user.role);
     setEditError('');
@@ -333,6 +347,15 @@ function Users({
     const username = editUsername.trim();
     if (canEditUsers && (username.length < 1 || username.length > 50)) {
       setEditError('El nombre de usuario debe tener entre 1 y 50 caracteres.');
+      return;
+    }
+
+    const correo = editEmail.trim().toLowerCase();
+    if (
+      canEditUsers &&
+      (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo) || correo.length > 150)
+    ) {
+      setEditError('Ingresá un correo electrónico válido.');
       return;
     }
 
@@ -355,6 +378,7 @@ function Users({
     try {
       const update: ManagedUserUpdate = {
         ...(canEditUsers ? { username } : {}),
+        ...(canEditUsers ? { correo } : {}),
         ...(canEditUsers && editPassword ? { password: editPassword } : {}),
         ...(canEditUsers || canChangeRole ? { role: editRole } : {}),
       };
@@ -395,9 +419,18 @@ function Users({
     }
 
     const username = createUsername.trim();
+    const correo = createEmail.trim().toLowerCase();
 
     if (username.length < 3) {
       setCreateError('El nombre de usuario debe tener al menos 3 caracteres.');
+      return;
+    }
+
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo) ||
+      correo.length > 150
+    ) {
+      setCreateError('Ingresá un correo electrónico válido.');
       return;
     }
 
@@ -419,12 +452,13 @@ function Users({
     setMessage('');
 
     try {
-      await createAdminUser(username, createPassword, token);
+      await createAdminUser(username, correo, createPassword, token, createRole);
 
       setShowCreateModal(false);
       setCreateUsername('');
+      setCreateEmail('');
       setCreatePassword('');
-      setCreateRole('user');
+      setCreateRole(userRole);
       setMessage(`El usuario "${username}" fue creado correctamente.`);
 
       if (canViewUsers) {
@@ -454,8 +488,16 @@ function Users({
   return (
     <main className="users-page">
       <AdminSidebar
-        activePage="users"
+        activePage={
+          userRole === 'provider'
+            ? 'providers'
+            : userRole === 'admin'
+              ? 'admins'
+              : 'users'
+        }
         canViewProducts={canViewProducts}
+        onNavigateToUsers={() => onNavigateToUserRole('user')}
+        onNavigateToUserRole={onNavigateToUserRole}
         onNavigateToProducts={onNavigateToProducts}
         onNavigateToRolePermissions={onNavigateToRolePermissions}
         onNavigateToProfile={onNavigateToProfile}
@@ -519,8 +561,16 @@ function Users({
             <div className="users-table-header">
               <div>
                 <span className="users-section-eyebrow">DIRECTORIO</span>
-                <h2>Usuarios registrados</h2>
-                <p>Listado de cuentas y niveles de acceso.</p>
+                <h2>
+                  {userRole === 'provider'
+                    ? 'Proveedores registrados'
+                    : userRole === 'admin'
+                      ? 'Administradores registrados'
+                      : 'Usuarios registrados'}
+                </h2>
+                <p>
+                  Listado de cuentas filtrado por rol y nivel de acceso.
+                </p>
               </div>
 
               <div className="users-header-actions">
@@ -530,6 +580,7 @@ function Users({
                     type="button"
                     onClick={() => {
                       setCreateError('');
+                      setCreateRole(userRole);
                       setShowCreateModal(true);
                     }}
                   >
@@ -577,8 +628,8 @@ function Users({
                       type="search"
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Buscar por usuario, ID o rol..."
-                      aria-label="Buscar usuarios"
+                      placeholder="Buscar por usuario, correo o ID..."
+                      aria-label={`Buscar ${rolePluralLabels[userRole]}`}
                     />
 
                     {search && (
@@ -594,7 +645,7 @@ function Users({
                   </label>
 
                   <span className="users-results-count">
-                    <strong>{filteredUsers.length}</strong> de {users.length}{' '}
+                    <strong>{filteredUsers.length}</strong> de {usersForRole.length}{' '}
                     registros
                   </span>
                 </div>
@@ -614,6 +665,7 @@ function Users({
                         <tr>
                           <th>ID</th>
                           <th>Usuario</th>
+                          <th>Correo electrónico</th>
                           <th>Rol y permisos</th>
                           <th>Estado</th>
                           {hasActions && <th>Acciones</th>}
@@ -624,19 +676,17 @@ function Users({
                         {filteredUsers.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={
-                                hasActions ? 5 : 4
-                              }
+                              colSpan={hasActions ? 6 : 5}
                               className="users-empty"
                             >
                               <strong>
                                 {search
                                   ? 'No encontramos coincidencias'
-                                  : 'No hay usuarios registrados'}
+                                  : `No hay ${rolePluralLabels[userRole]} registrados.`}
                               </strong>
                               <span>
                                 {search
-                                  ? 'Probá con otro nombre, ID o rol.'
+                                  ? 'Probá con otro nombre, correo o ID.'
                                   : 'Los registros aparecerán aquí.'}
                               </span>
                             </td>
@@ -668,6 +718,8 @@ function Users({
                                     </div>
                                   </div>
                                 </td>
+
+                                <td>{user.correo || 'Sin correo'}</td>
 
                                 <td>
                                   {canChangeRole ? (
@@ -797,7 +849,7 @@ function Users({
               <span>
                 Mostrando{' '}
                 <strong>{canViewUsers ? filteredUsers.length : 0}</strong>{' '}
-                usuarios
+                {rolePluralLabels[userRole]}
               </span>
 
               <span className="users-table-footer-status">
@@ -878,6 +930,20 @@ function Users({
                   required
                   disabled={creatingUser}
                   autoFocus
+                />
+              </label>
+
+              <label className="users-modal-field">
+                <span>Correo electrónico</span>
+                <input
+                  type="email"
+                  value={createEmail}
+                  onChange={(event) => setCreateEmail(event.target.value)}
+                  placeholder="nombre@ejemplo.com"
+                  maxLength={150}
+                  autoComplete="email"
+                  required
+                  disabled={creatingUser}
                 />
               </label>
 
@@ -1001,6 +1067,19 @@ function Users({
                       required
                       disabled={savingUser}
                       autoFocus
+                    />
+                  </label>
+
+                  <label className="users-modal-field">
+                    <span>Correo electrónico</span>
+                    <input
+                      type="email"
+                      value={editEmail}
+                      onChange={(event) => setEditEmail(event.target.value)}
+                      maxLength={150}
+                      autoComplete="email"
+                      required
+                      disabled={savingUser}
                     />
                   </label>
 

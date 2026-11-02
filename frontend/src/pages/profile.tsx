@@ -16,6 +16,7 @@ type ProfileTab = 'info' | 'photo' | 'password'
 
 interface ProfileProps {
   onNavigateToUsers: () => void
+  onNavigateToUserRole?: (role: UserRole) => void
   onNavigateToCreateUser: () => void
   onNavigateToProducts?: () => void
   onNavigateToRolePermissions?: () => void
@@ -31,6 +32,7 @@ interface StoredUser {
 
 function Profile({
   onNavigateToUsers,
+  onNavigateToUserRole,
   onNavigateToCreateUser,
   onNavigateToProducts,
   onNavigateToRolePermissions,
@@ -464,6 +466,7 @@ function Profile({
           activePage="profile"
           canViewProducts={canViewProducts}
           onNavigateToUsers={onNavigateToUsers}
+          onNavigateToUserRole={onNavigateToUserRole}
           onNavigateToProducts={onNavigateToProducts}
           onNavigateToRolePermissions={onNavigateToRolePermissions}
           onLogout={handleLogout}

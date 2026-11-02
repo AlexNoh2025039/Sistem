@@ -26,6 +26,7 @@ function UserManagement() {
   const [message, setMessage] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [newUsername, setNewUsername] = useState('')
+  const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [creating, setCreating] = useState(false)
 
@@ -77,10 +78,12 @@ function UserManagement() {
 
     try {
       const username = newUsername.trim()
-      await createAdminUser(username, newPassword, token)
+      const email = newEmail.trim().toLowerCase()
+      await createAdminUser(username, email, newPassword, token)
 
       setMessage(`El usuario "${username}" fue creado correctamente.`)
       setNewUsername('')
+      setNewEmail('')
       setNewPassword('')
       setShowForm(false)
       setLoading(true)
@@ -253,6 +256,20 @@ function UserManagement() {
                   autoComplete="off"
                   minLength={1}
                   maxLength={50}
+                  required
+                />
+              </div>
+
+              <div className="users-form-field">
+                <label htmlFor="new-email">Correo electrónico</label>
+                <input
+                  id="new-email"
+                  type="email"
+                  value={newEmail}
+                  onChange={(event) => setNewEmail(event.target.value)}
+                  placeholder="nombre@ejemplo.com"
+                  maxLength={150}
+                  autoComplete="email"
                   required
                 />
               </div>

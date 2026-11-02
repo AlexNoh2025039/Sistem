@@ -6,12 +6,14 @@ import {
   deactivateProduct,
   type Product,
 } from '../services/api'
+import type { UserRole } from '../services/api'
 import AdminSidebar from '../components/AdminSidebar'
 import '../styles/Products.css'
 
 interface AdminNavigation {
   canViewProducts: boolean
   onNavigateToUsers: () => void
+  onNavigateToUserRole?: (role: UserRole) => void
   onNavigateToRolePermissions: () => void
 }
 
@@ -132,6 +134,7 @@ function Products({
           activePage="products"
           canViewProducts={adminNavigation.canViewProducts}
           onNavigateToUsers={adminNavigation.onNavigateToUsers}
+          onNavigateToUserRole={adminNavigation.onNavigateToUserRole}
           onNavigateToRolePermissions={
             adminNavigation.onNavigateToRolePermissions
           }

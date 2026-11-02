@@ -15,6 +15,7 @@ import '../styles/RolePermissions.css'
 
 interface RolePermissionsProps {
   onNavigateToUsers: () => void
+  onNavigateToUserRole: (role: UserRole) => void
   onNavigateToProducts: () => void
   onNavigateToProfile: () => void
   canViewProducts: boolean
@@ -115,6 +116,7 @@ const permissionGroups = [
 
 function RolePermissions({
   onNavigateToUsers,
+  onNavigateToUserRole,
   onNavigateToProducts,
   onNavigateToProfile,
   canViewProducts,
@@ -375,6 +377,7 @@ function RolePermissions({
       activePage="role-permissions"
       canViewProducts={canViewProducts}
       onNavigateToUsers={onNavigateToUsers}
+      onNavigateToUserRole={onNavigateToUserRole}
       onNavigateToProducts={onNavigateToProducts}
       onNavigateToProfile={onNavigateToProfile}
       onLogout={handleLogout}

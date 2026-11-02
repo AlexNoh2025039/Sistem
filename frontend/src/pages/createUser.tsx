@@ -9,6 +9,7 @@ interface CreateUserProps {
   onUserCreated: () => void
   onNavigateToProfile: () => void
   onNavigateToUsers: () => void
+  onNavigateToUserRole: (role: 'admin' | 'provider' | 'user') => void
   onNavigateToProducts: () => void
   onNavigateToRolePermissions: () => void
   canViewProducts: boolean
@@ -20,12 +21,14 @@ function CreateUser({
   onUserCreated,
   onNavigateToProfile,
   onNavigateToUsers,
+  onNavigateToUserRole,
   onNavigateToProducts,
   onNavigateToRolePermissions,
   canViewProducts,
   onLogout,
 }: CreateUserProps) {
   const [username, setUsername] = useState('')
+  const [correo, setCorreo] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -38,6 +41,7 @@ function CreateUser({
     setMessage('')
 
     const cleanUsername = username.trim()
+    const cleanEmail = correo.trim().toLowerCase()
 
     if (cleanUsername.length < 3 || cleanUsername.length > 50) {
       setError('El usuario debe tener entre 3 y 50 caracteres.')
@@ -46,6 +50,14 @@ function CreateUser({
 
     if (password.length < 8) {
       setError('La contraseña debe tener al menos 8 caracteres.')
+      return
+    }
+
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) ||
+      cleanEmail.length > 150
+    ) {
+      setError('Ingresá un correo electrónico válido.')
       return
     }
 
@@ -64,10 +76,11 @@ function CreateUser({
     setLoading(true)
 
     try {
-      await createAdminUser(cleanUsername, password, token)
+      await createAdminUser(cleanUsername, cleanEmail, password, token)
 
       setMessage('El usuario se creó correctamente.')
       setUsername('')
+      setCorreo('')
       setPassword('')
       setConfirmPassword('')
 
@@ -89,6 +102,7 @@ function CreateUser({
         activePage="create-user"
         canViewProducts={canViewProducts}
         onNavigateToUsers={onNavigateToUsers}
+        onNavigateToUserRole={onNavigateToUserRole}
         onNavigateToProducts={onNavigateToProducts}
         onNavigateToRolePermissions={onNavigateToRolePermissions}
         onNavigateToProfile={onNavigateToProfile}
@@ -138,6 +152,18 @@ function CreateUser({
                   minLength={3}
                   maxLength={50}
                   autoComplete="username"
+                  required
+                />
+              </label>
+
+              <label>
+                Correo electrónico
+                <input
+                  type="email"
+                  value={correo}
+                  onChange={(event) => setCorreo(event.target.value)}
+                  maxLength={150}
+                  autoComplete="email"
                   required
                 />
               </label>

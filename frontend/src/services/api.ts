@@ -34,12 +34,14 @@ export interface UserPermissionsResponse {
 export interface ManagedUser {
   id: number
   username: string
+  correo: string | null
   role: UserRole
   saldo?: string | number
 }
 
 export interface ManagedUserUpdate {
   username?: string
+  correo?: string
   password?: string
   role?: UserRole
 }
@@ -228,8 +230,10 @@ export async function registerUser(
 
 export async function createAdminUser(
   username: string,
+  correo: string,
   password: string,
   token: string,
+  role: UserRole = 'user',
 ): Promise<RegisterResponse> {
   const response = await fetch(`${API_URL}/admin/users`, {
     method: 'POST',
@@ -237,7 +241,12 @@ export async function createAdminUser(
       ...authHeaders(token),
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ username: username.trim(), password }),
+    body: JSON.stringify({
+      username: username.trim(),
+      correo: correo.trim().toLowerCase(),
+      password,
+      role,
+    }),
   })
 
   return readResponse<RegisterResponse>(response)

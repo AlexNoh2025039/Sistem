@@ -28,7 +28,7 @@ CREATE TABLE usuarios (
 
     username VARCHAR(120) NOT NULL UNIQUE,
 
-    correo VARCHAR(150) UNIQUE,
+    correo VARCHAR(150) NOT NULL UNIQUE,
 
     password VARCHAR(255) NOT NULL,
  
