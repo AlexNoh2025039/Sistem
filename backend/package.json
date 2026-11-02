@@ -1,10 +1,13 @@
+
 {
   "name": "backend-usuarios-ts",
   "version": "1.0.0",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
