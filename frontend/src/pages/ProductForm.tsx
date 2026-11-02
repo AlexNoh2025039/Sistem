@@ -1,15 +1,27 @@
 
 import { useEffect, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
-import { createProduct, getPhotoUrl, updateProduct } from '../services/api'
-import type { Product, ProductInput, UserRole } from '../services/api'
-import AdminSidebar from '../components/AdminSidebar'
+import {
+  createAdminProduct,
+  createProduct,
+  getAdminProviders,
+  getPhotoUrl,
+  updateProduct,
+} from '../services/api'
+import type {
+  AdminProvider,
+  Product,
+  ProductInput,
+  UserRole,
+} from '../services/api'
+import AdminSidebar, { type AdminPage } from '../components/AdminSidebar'
 import '../styles/ProductForm.css'
 
 interface AdminNavigation {
   canViewProducts: boolean
   onNavigateToUsers: () => void
-  onNavigateToUserRole?: (role: UserRole) => void
+  onNavigateToUserRole?: (role: UserRole | 'all') => void
+  onNavigateToPage: (page: AdminPage) => void
   onNavigateToRolePermissions: () => void
   onNavigateToProfile: () => void
   onLogout: () => void
@@ -45,8 +57,47 @@ function ProductForm({
   const [imageError, setImageError] = useState(false)
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [providers, setProviders] = useState<AdminProvider[]>([])
+  const [providersLoading, setProvidersLoading] = useState(false)
+  const [providerId, setProviderId] = useState('')
+  const [providerError, setProviderError] = useState('')
 
   const isEditing = product !== null
+  const isAdminCreate = Boolean(adminNavigation) && !isEditing
+
+  useEffect(() => {
+    if (!isAdminCreate) return
+
+    const token = localStorage.getItem('token')
+    if (!token) {
+      setProviderError('No hay una sesión activa. Iniciá sesión nuevamente.')
+      return
+    }
+
+    let active = true
+    setProvidersLoading(true)
+    getAdminProviders(token)
+      .then((providerList) => {
+        if (!active) return
+        setProviders(providerList)
+        if (providerList.length > 0) setProviderId(String(providerList[0].id))
+      })
+      .catch((loadError: unknown) => {
+        if (!active) return
+        setProviderError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'No se pudieron cargar los proveedores.',
+        )
+      })
+      .finally(() => {
+        if (active) setProvidersLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [isAdminCreate])
 
   useEffect(() => {
     if (product) {
@@ -159,6 +210,11 @@ function ProductForm({
       return
     }
 
+    if (isAdminCreate && !providerId) {
+      setError('Seleccioná un proveedor para el producto.')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -172,7 +228,14 @@ function ProductForm({
         imagen_url: form.imagen_url.trim(),
       }
 
-      if (isEditing && product) {
+      if (isAdminCreate) {
+        await createAdminProduct(
+          productData,
+          Number(providerId),
+          token,
+          selectedImage,
+        )
+      } else if (isEditing && product) {
         await updateProduct(product.id, productData, token, selectedImage)
       } else {
         await createProduct(productData, token, selectedImage)
@@ -200,10 +263,11 @@ function ProductForm({
     >
       {adminNavigation && (
         <AdminSidebar
-          activePage="product-form"
+          activePage={isAdminCreate ? 'create-product' : 'product-form'}
           canViewProducts={adminNavigation.canViewProducts}
           onNavigateToUsers={adminNavigation.onNavigateToUsers}
           onNavigateToUserRole={adminNavigation.onNavigateToUserRole}
+          onNavigateToPage={adminNavigation.onNavigateToPage}
           onNavigateToProducts={onBack}
           onNavigateToRolePermissions={
             adminNavigation.onNavigateToRolePermissions
@@ -228,18 +292,23 @@ function ProductForm({
             {adminNavigation ? 'PANEL DE ADMINISTRACIÓN' : 'ESPACIO DEL PROVEEDOR'}
           </span>
 
-          <h1>{isEditing ? 'Editar producto' : 'Nuevo producto'}</h1>
+          <h1>{isEditing ? 'Editar producto' : 'Ficha de producto'}</h1>
 
           <p>
             {isEditing
               ? 'Actualizá la información de tu producto.'
-              : 'Agregá un producto a tu catálogo y preparalo para tus clientes.'}
+              : 'Completá la información del producto y elegí su proveedor.'}
           </p>
         </header>
 
         {error && (
           <div className="product-form-error" role="alert">
             {error}
+          </div>
+        )}
+        {providerError && (
+          <div className="product-form-error" role="alert">
+            {providerError}
           </div>
         )}
 
@@ -254,6 +323,36 @@ function ProductForm({
             </div>
 
             <div className="product-form-grid">
+              {isAdminCreate && (
+                <div className="product-form-field product-form-field-full">
+                  <label htmlFor="proveedor_id">Proveedor *</label>
+                  <select
+                    id="proveedor_id"
+                    value={providerId}
+                    onChange={(event) => setProviderId(event.target.value)}
+                    required
+                    disabled={providersLoading || providers.length === 0 || loading}
+                  >
+                    {providers.length === 0 && (
+                      <option value="">
+                        {providersLoading
+                          ? 'Cargando proveedores...'
+                          : 'No hay proveedores registrados'}
+                      </option>
+                    )}
+                    {providers.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.nombre_proveedor ||
+                          provider.nombre_empresa ||
+                          provider.username ||
+                          `Proveedor #${provider.id}`}
+                        {provider.nit ? ` · NIT ${provider.nit}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="product-form-field product-form-field-full">
                 <label htmlFor="nombre">Nombre del producto *</label>
                 <input

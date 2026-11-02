@@ -35,7 +35,7 @@ export const listProducts = async (req: Request, res: Response) => {
       `SELECT p.id, p.proveedor_id, p.nombre, p.descripcion,
               p.categoria, p.marca, p.modelo, p.precio,
               p.existencias, p.imagen_url, p.activo,
-              pr.nombre_empresa
+              pr.nombre_empresa, pr.nombre_proveedor
        FROM productos p
        JOIN proveedores pr ON pr.id = p.proveedor_id
        WHERE p.activo = TRUE
@@ -64,6 +64,106 @@ export const listProducts = async (req: Request, res: Response) => {
   }
 };
 
+export const listAdminProducts = async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.id, p.proveedor_id, p.nombre, p.descripcion,
+              p.categoria, p.marca, p.modelo, p.precio,
+              p.existencias, p.imagen_url, p.activo,
+              p.creado_en, p.actualizado_en, pr.nombre_empresa,
+              pr.nombre_proveedor
+       FROM productos p
+       JOIN proveedores pr ON pr.id = p.proveedor_id
+       ORDER BY p.creado_en DESC`,
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error('Error listing admin products:', error);
+
+    return res.status(500).json({
+      error: 'No se pudieron obtener los productos.',
+    });
+  }
+};
+
+export const createAdminProduct = async (req: Request, res: Response) => {
+  const providerId = Number(req.body.proveedor_id);
+  const {
+    nombre,
+    descripcion,
+    categoria,
+    marca,
+    modelo,
+    precio,
+    existencias,
+  } = req.body;
+  const parsedPrice = Number(precio);
+  const parsedStock = Number(existencias);
+
+  if (
+    !Number.isInteger(providerId) ||
+    providerId <= 0 ||
+    typeof nombre !== 'string' ||
+    nombre.trim().length < 1 ||
+    nombre.trim().length > 150 ||
+    !Number.isFinite(parsedPrice) ||
+    parsedPrice < 0 ||
+    !Number.isInteger(parsedStock) ||
+    parsedStock < 0
+  ) {
+    return res.status(400).json({
+      error: 'Seleccioná un proveedor e ingresá un nombre, precio y existencias válidos.',
+    });
+  }
+
+  try {
+    const provider = await pool.query(
+      `SELECT p.id
+       FROM proveedores p
+       LEFT JOIN usuarios u ON u.id = p.usuario_id
+       WHERE p.id = $1
+         AND (u.id IS NULL OR u.rol = 'provider')`,
+      [providerId],
+    );
+
+    if (provider.rows.length === 0) {
+      return res.status(400).json({
+        error: 'El proveedor seleccionado no existe o no tiene una cuenta de proveedor.',
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO productos
+         (proveedor_id, nombre, descripcion, categoria, marca,
+          modelo, precio, existencias, imagen_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        providerId,
+        nombre.trim(),
+        typeof descripcion === 'string' ? descripcion.trim() : null,
+        typeof categoria === 'string' ? categoria.trim() : null,
+        typeof marca === 'string' ? marca.trim() : null,
+        typeof modelo === 'string' ? modelo.trim() : null,
+        parsedPrice,
+        parsedStock,
+        getProductImage(req),
+      ],
+    );
+
+    return res.status(201).json({
+      message: 'Producto creado correctamente.',
+      product: result.rows[0],
+    });
+  } catch (error) {
+    console.error('Error creating admin product:', error);
+    return res.status(500).json({
+      error: 'No se pudo crear el producto.',
+    });
+  }
+};
+
 // Obtener un producto por su ID.
 export const getProductById = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
@@ -79,7 +179,7 @@ export const getProductById = async (req: Request, res: Response) => {
       `SELECT p.id, p.proveedor_id, p.nombre, p.descripcion,
               p.categoria, p.marca, p.modelo, p.precio,
               p.existencias, p.imagen_url, p.activo,
-              pr.nombre_empresa
+              pr.nombre_empresa, pr.nombre_proveedor
        FROM productos p
        JOIN proveedores pr ON pr.id = p.proveedor_id
        WHERE p.id = $1 AND p.activo = TRUE`,

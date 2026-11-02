@@ -21,23 +21,14 @@ const rolePermissionKeys: Record<UserRole, string[]> = {
     'users.delete',
     'users.role.change',
     'permissions.manage',
-    'products.view',
-    'products.publish',
-    'products.edit',
-    'products.deactivate',
     'orders.view',
   ],
   user: [
-    'products.view',
     'cart.manage',
     'orders.create',
     'orders.view',
   ],
   provider: [
-    'products.view',
-    'products.publish',
-    'products.edit',
-    'products.deactivate',
     'provider.profile.manage',
     'orders.view',
   ],
@@ -45,7 +36,13 @@ const rolePermissionKeys: Record<UserRole, string[]> = {
 
 // Registrar un usuario o crear una cuenta desde el panel administrativo.
 export const registerUser = async (req: Request, res: Response) => {
-  const { username, correo, password } = req.body ?? {};
+  const {
+    username,
+    correo,
+    password,
+    nombre_completo,
+    telefono,
+  } = req.body ?? {};
 
   const isAdminCreation = req.user?.rol === 'admin';
 
@@ -59,6 +56,9 @@ export const registerUser = async (req: Request, res: Response) => {
 
   const cleanEmail =
     typeof correo === 'string' ? correo.trim().toLowerCase() : '';
+  const cleanFullName =
+    typeof nombre_completo === 'string' ? nombre_completo.trim() : null;
+  const cleanPhone = typeof telefono === 'string' ? telefono.trim() : null;
 
   if (
     !cleanUsername ||
@@ -70,6 +70,15 @@ export const registerUser = async (req: Request, res: Response) => {
     return res.status(400).json({
       error:
         'El usuario debe tener entre 1 y 50 caracteres y la contraseña al menos 8 caracteres, con un máximo de 72 bytes.',
+    });
+  }
+
+  if (
+    (cleanFullName !== null && cleanFullName.length > 150) ||
+    (cleanPhone !== null && cleanPhone.length > 30)
+  ) {
+    return res.status(400).json({
+      error: 'El nombre de contacto o teléfono supera la longitud permitida.',
     });
   }
 
@@ -91,10 +100,19 @@ export const registerUser = async (req: Request, res: Response) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const result = await client.query(
-      `INSERT INTO usuarios (username, correo, password, rol)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, username, correo, rol AS role, saldo`,
-      [cleanUsername, cleanEmail, passwordHash, role],
+      `INSERT INTO usuarios
+         (username, correo, password, rol, nombre_completo, telefono)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, username, correo, rol AS role, saldo,
+                 nombre_completo, telefono`,
+      [
+        cleanUsername,
+        cleanEmail,
+        passwordHash,
+        role,
+        cleanFullName || null,
+        cleanPhone || null,
+      ],
     );
 
     const newUser = result.rows[0];
@@ -229,7 +247,8 @@ export const loginUser = async (req: Request, res: Response) => {
 export const listUsers = async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT id, username, correo, rol AS role, saldo
+      `SELECT id, username, correo, rol AS role, saldo,
+              nombre_completo, telefono, direccion, forma_pago, descripcion
        FROM usuarios
        ORDER BY id`,
     );
@@ -467,9 +486,24 @@ export const changeUserRole = async (req: Request, res: Response) => {
 
 export const updateManagedUser = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  const { username, correo, password, role } = req.body ?? {};
+  const {
+    username,
+    correo,
+    nombre_completo,
+    telefono,
+    direccion,
+    forma_pago,
+    descripcion,
+    password,
+    role,
+  } = req.body ?? {};
   const updatesUsername = username !== undefined;
   const updatesEmail = correo !== undefined;
+  const updatesContactName = nombre_completo !== undefined;
+  const updatesPhone = telefono !== undefined;
+  const updatesAddress = direccion !== undefined;
+  const updatesPaymentMethod = forma_pago !== undefined;
+  const updatesDescription = descripcion !== undefined;
   const updatesPassword = password !== undefined;
   const updatesRole = role !== undefined;
 
@@ -502,6 +536,51 @@ export const updateManagedUser = async (req: Request, res: Response) => {
   }
 
   if (
+    updatesContactName &&
+    (typeof nombre_completo !== 'string' || nombre_completo.trim().length > 150)
+  ) {
+    return res.status(400).json({
+      error: 'El nombre de contacto no puede superar los 150 caracteres.',
+    });
+  }
+
+  if (
+    updatesPhone &&
+    (typeof telefono !== 'string' || telefono.trim().length > 30)
+  ) {
+    return res.status(400).json({
+      error: 'El teléfono no puede superar los 30 caracteres.',
+    });
+  }
+
+  if (
+    updatesAddress &&
+    (typeof direccion !== 'string' || direccion.trim().length > 500)
+  ) {
+    return res.status(400).json({
+      error: 'La dirección no puede superar los 500 caracteres.',
+    });
+  }
+
+  if (
+    updatesPaymentMethod &&
+    (typeof forma_pago !== 'string' || forma_pago.trim().length > 100)
+  ) {
+    return res.status(400).json({
+      error: 'La forma de pago no puede superar los 100 caracteres.',
+    });
+  }
+
+  if (
+    updatesDescription &&
+    (typeof descripcion !== 'string' || descripcion.trim().length > 2000)
+  ) {
+    return res.status(400).json({
+      error: 'Los comentarios no pueden superar los 2000 caracteres.',
+    });
+  }
+
+  if (
     password !== undefined &&
     (typeof password !== 'string' ||
       password.length < 8 ||
@@ -522,7 +601,17 @@ export const updateManagedUser = async (req: Request, res: Response) => {
     });
   }
 
-  if (!updatesUsername && !updatesEmail && !updatesPassword && !updatesRole) {
+  if (
+    !updatesUsername &&
+    !updatesEmail &&
+    !updatesContactName &&
+    !updatesPhone &&
+    !updatesAddress &&
+    !updatesPaymentMethod &&
+    !updatesDescription &&
+    !updatesPassword &&
+    !updatesRole
+  ) {
     return res.status(400).json({
       error: 'Debes indicar al menos un dato para actualizar.',
     });
@@ -556,7 +645,16 @@ export const updateManagedUser = async (req: Request, res: Response) => {
     const newRole: UserRole =
       (role as UserRole | undefined) ?? (targetUser.rol as UserRole);
 
-    if (updatesUsername || updatesEmail || updatesPassword) {
+    if (
+      updatesUsername ||
+      updatesEmail ||
+      updatesContactName ||
+      updatesPhone ||
+      updatesAddress ||
+      updatesPaymentMethod ||
+      updatesDescription ||
+      updatesPassword
+    ) {
       const permission = await client.query(
         `SELECT COALESCE(
            (SELECT allowed
@@ -643,13 +741,29 @@ export const updateManagedUser = async (req: Request, res: Response) => {
       `UPDATE usuarios
        SET username = COALESCE($1, username),
            correo = COALESCE($2, correo),
-           password = COALESCE($3, password),
-           rol = $4
-       WHERE id = $5
-       RETURNING id, username, correo, rol AS role, saldo`,
+           nombre_completo = CASE WHEN $3 THEN $4 ELSE nombre_completo END,
+           telefono = CASE WHEN $5 THEN $6 ELSE telefono END,
+           direccion = CASE WHEN $7 THEN $8 ELSE direccion END,
+           forma_pago = CASE WHEN $9 THEN $10 ELSE forma_pago END,
+           descripcion = CASE WHEN $11 THEN $12 ELSE descripcion END,
+           password = COALESCE($13, password),
+           rol = $14
+       WHERE id = $15
+       RETURNING id, username, correo, rol AS role, saldo,
+                 nombre_completo, telefono, direccion, forma_pago, descripcion`,
       [
         updatesUsername ? username.trim() : null,
         updatesEmail ? correo.trim().toLowerCase() : null,
+        updatesContactName,
+        updatesContactName ? nombre_completo.trim() || null : null,
+        updatesPhone,
+        updatesPhone ? telefono.trim() || null : null,
+        updatesAddress,
+        updatesAddress ? direccion.trim() || null : null,
+        updatesPaymentMethod,
+        updatesPaymentMethod ? forma_pago.trim() || null : null,
+        updatesDescription,
+        updatesDescription ? descripcion.trim() || null : null,
         passwordHash,
         newRole,
         id,

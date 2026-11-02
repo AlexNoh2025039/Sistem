@@ -3,20 +3,32 @@ import type { FormEvent } from 'react';
 import {
   changeUserRole,
   createAdminUser,
+  deleteAdminClient,
   deleteUser,
+  getAdminClients,
   getPhotoUrl,
   getProfile,
   getUsers,
+  updateAdminClient,
   updateManagedUser,
 } from '../services/api';
-import type { ManagedUserUpdate, UserRole } from '../services/api';
-import AdminSidebar from '../components/AdminSidebar';
+import type {
+  AdminClient,
+  ManagedUserUpdate,
+  UserRole,
+} from '../services/api';
+import AdminSidebar, { type AdminPage } from '../components/AdminSidebar';
 import '../styles/Users.css';
 
 interface User {
   id: number;
   username: string;
   correo: string | null;
+  nombre_completo?: string | null;
+  telefono?: string | null;
+  direccion?: string | null;
+  forma_pago?: string | null;
+  descripcion?: string | null;
   role: UserRole;
 }
 
@@ -25,8 +37,9 @@ interface UsersProps {
   onNavigateToProfile: () => void;
   onNavigateToRolePermissions: () => void;
   onNavigateToProducts: () => void;
-  onNavigateToUserRole: (role: UserRole) => void;
-  userRole: UserRole;
+  onNavigateToUserRole: (role: UserRole | 'all') => void;
+  onNavigateToPage: (page: AdminPage) => void;
+  userRole: UserRole | 'all';
   canViewProducts: boolean;
   permissions: Record<string, boolean>;
 }
@@ -43,17 +56,24 @@ const rolePluralLabels: Record<UserRole, string> = {
   provider: 'proveedores',
 };
 
+const roleForCreation = (role: UserRole | 'all'): UserRole =>
+  role === 'all' ? 'user' : role;
+
 function Users({
   onLogout,
   onNavigateToProfile,
   onNavigateToRolePermissions,
   onNavigateToProducts,
   onNavigateToUserRole,
+  onNavigateToPage,
   userRole,
   canViewProducts,
   permissions,
 }: UsersProps) {
   const [users, setUsers] = useState<User[]>([]);
+  const [clients, setClients] = useState<AdminClient[]>([]);
+  const [clientsLoading, setClientsLoading] = useState(false);
+  const [clientsError, setClientsError] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -68,12 +88,28 @@ function Users({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createUsername, setCreateUsername] = useState('');
   const [createEmail, setCreateEmail] = useState('');
+  const [createContactName, setCreateContactName] = useState('');
+  const [createPhone, setCreatePhone] = useState('');
   const [createPassword, setCreatePassword] = useState('');
   const [creatingUser, setCreatingUser] = useState(false);
   const [createError, setCreateError] = useState('');
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingClient, setEditingClient] = useState<AdminClient | null>(null);
+  const [editClientName, setEditClientName] = useState('');
+  const [editClientEmail, setEditClientEmail] = useState('');
+  const [editClientPhone, setEditClientPhone] = useState('');
+  const [editClientAddress, setEditClientAddress] = useState('');
+  const [editClientPaymentMethod, setEditClientPaymentMethod] = useState('');
+  const [editClientDescription, setEditClientDescription] = useState('');
+  const [savingClient, setSavingClient] = useState(false);
+  const [editClientError, setEditClientError] = useState('');
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editContactName, setEditContactName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editPaymentMethod, setEditPaymentMethod] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('user');
   const [savingUser, setSavingUser] = useState(false);
@@ -144,6 +180,38 @@ function Users({
     }
   }, [canViewUsers]);
 
+  const loadClients = useCallback(async () => {
+    if (!canViewUsers || userRole !== 'all') {
+      setClients([]);
+      setClientsError('');
+      setClientsLoading(false);
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setClientsError('No hay una sesión activa. Iniciá sesión nuevamente.');
+      setClientsLoading(false);
+      return;
+    }
+
+    setClientsLoading(true);
+    setClientsError('');
+
+    try {
+      setClients(await getAdminClients(token));
+    } catch (err) {
+      setClientsError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudieron cargar las fichas de cliente.',
+      );
+      setClients([]);
+    } finally {
+      setClientsLoading(false);
+    }
+  }, [canViewUsers, userRole]);
+
   useEffect(() => {
     if (canViewUsers) {
       void loadUsers();
@@ -153,6 +221,10 @@ function Users({
       setError('');
     }
   }, [canViewUsers, loadUsers]);
+
+  useEffect(() => {
+    void loadClients();
+  }, [loadClients]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -184,7 +256,7 @@ function Users({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !creatingUser && !savingUser) {
+      if (event.key === 'Escape' && !creatingUser && !savingUser && !savingClient) {
         if (showCreateModal) {
           setShowCreateModal(false);
           setCreateError('');
@@ -193,17 +265,28 @@ function Users({
           setEditingUser(null);
           setEditError('');
         }
+        if (editingClient) {
+          setEditingClient(null);
+          setEditClientError('');
+        }
       }
     };
 
-    if (showCreateModal || editingUser) {
+    if (showCreateModal || editingUser || editingClient) {
       window.addEventListener('keydown', handleKeyDown);
     }
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showCreateModal, creatingUser, editingUser, savingUser]);
+  }, [
+    showCreateModal,
+    creatingUser,
+    editingUser,
+    savingUser,
+    editingClient,
+    savingClient,
+  ]);
 
   useEffect(() => {
     if (!canCreateUsers) {
@@ -211,18 +294,35 @@ function Users({
     }
   }, [canCreateUsers]);
 
-  const usersForRole = users.filter((user) => user.role === userRole);
+  const usersForRole =
+    userRole === 'all' ? users : users.filter((user) => user.role === userRole);
   const filteredUsers = usersForRole.filter((user) => {
     const searchText = search.trim().toLowerCase();
 
     return (
       user.username.toLowerCase().includes(searchText) ||
+      (user.nombre_completo ?? '').toLowerCase().includes(searchText) ||
       (user.correo ?? '').toLowerCase().includes(searchText) ||
+      (user.telefono ?? '').toLowerCase().includes(searchText) ||
+      (user.direccion ?? '').toLowerCase().includes(searchText) ||
+      (user.forma_pago ?? '').toLowerCase().includes(searchText) ||
+      (user.descripcion ?? '').toLowerCase().includes(searchText) ||
       String(user.id).includes(searchText) ||
       roleLabels[user.role].toLowerCase().includes(searchText)
     );
   });
-
+  const searchText = search.trim().toLowerCase();
+  const filteredClients = clients.filter((client) =>
+    [
+      client.nombre,
+      client.correo,
+      client.telefono,
+      client.direccion,
+      client.descripcion,
+      client.forma_pago,
+      String(client.id),
+    ].some((value) => value?.toLowerCase().includes(searchText)),
+  );
   const handleChangeRole = async (user: User) => {
     if (!canChangeRole) {
       setError('No tenés permiso para cambiar roles.');
@@ -329,10 +429,107 @@ function Users({
     }
   };
 
+  const handleDeleteClient = async (client: AdminClient) => {
+    if (!canDeleteUsers) {
+      setError('No tenés permiso para eliminar fichas de cliente.');
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `¿Seguro que querés eliminar la ficha de "${client.nombre}"?`,
+      )
+    ) {
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('No hay una sesión activa.');
+      return;
+    }
+
+    setError('');
+    setMessage('');
+
+    try {
+      await deleteAdminClient(client.id, token);
+      setClients((previousClients) =>
+        previousClients.filter((item) => item.id !== client.id),
+      );
+      setMessage(`La ficha de "${client.nombre}" se eliminó correctamente.`);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo eliminar la ficha del cliente.',
+      );
+    }
+  };
+
+  const openEditClient = (client: AdminClient) => {
+    setEditingClient(client);
+    setEditClientName(client.nombre);
+    setEditClientEmail(client.correo);
+    setEditClientPhone(client.telefono);
+    setEditClientAddress(client.direccion ?? '');
+    setEditClientPaymentMethod(client.forma_pago ?? '');
+    setEditClientDescription(client.descripcion ?? '');
+    setEditClientError('');
+  };
+
+  const handleEditClient = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingClient || !canEditUsers) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setEditClientError('No hay una sesión activa. Iniciá sesión nuevamente.');
+      return;
+    }
+
+    setSavingClient(true);
+    setEditClientError('');
+    try {
+      const { client: updatedClient } = await updateAdminClient(
+        editingClient.id,
+        {
+          nombre: editClientName.trim(),
+          correo: editClientEmail.trim().toLowerCase(),
+          telefono: editClientPhone.trim(),
+          direccion: editClientAddress.trim(),
+          forma_pago: editClientPaymentMethod.trim(),
+          descripcion: editClientDescription.trim(),
+        },
+        token,
+      );
+      setClients((previousClients) =>
+        previousClients.map((client) =>
+          client.id === updatedClient.id ? updatedClient : client,
+        ),
+      );
+      setEditingClient(null);
+      setMessage(`La ficha de "${updatedClient.nombre}" se actualizó correctamente.`);
+    } catch (err) {
+      setEditClientError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo actualizar la ficha del cliente.',
+      );
+    } finally {
+      setSavingClient(false);
+    }
+  };
+
   const openEditUser = (user: User) => {
     setEditingUser(user);
     setEditUsername(user.username);
     setEditEmail(user.correo ?? '');
+    setEditContactName(user.nombre_completo ?? '');
+    setEditPhone(user.telefono ?? '');
+    setEditAddress(user.direccion ?? '');
+    setEditPaymentMethod(user.forma_pago ?? '');
+    setEditDescription(user.descripcion ?? '');
     setEditPassword('');
     setEditRole(selectedRoles[user.id] ?? user.role);
     setEditError('');
@@ -358,6 +555,31 @@ function Users({
       return;
     }
 
+    if (canEditUsers && editContactName.trim().length > 150) {
+      setEditError('El nombre de contacto no puede superar los 150 caracteres.');
+      return;
+    }
+
+    if (canEditUsers && editPhone.trim().length > 30) {
+      setEditError('El teléfono no puede superar los 30 caracteres.');
+      return;
+    }
+
+    if (canEditUsers && editAddress.trim().length > 500) {
+      setEditError('La dirección no puede superar los 500 caracteres.');
+      return;
+    }
+
+    if (canEditUsers && editPaymentMethod.trim().length > 100) {
+      setEditError('La forma de pago no puede superar los 100 caracteres.');
+      return;
+    }
+
+    if (canEditUsers && editDescription.trim().length > 2000) {
+      setEditError('Los comentarios no pueden superar los 2000 caracteres.');
+      return;
+    }
+
     if (canEditUsers && editPassword && editPassword.length < 8) {
       setEditError('La contraseña debe tener al menos 8 caracteres.');
       return;
@@ -378,6 +600,11 @@ function Users({
       const update: ManagedUserUpdate = {
         ...(canEditUsers ? { username } : {}),
         ...(canEditUsers ? { correo } : {}),
+        ...(canEditUsers ? { nombre_completo: editContactName.trim() } : {}),
+        ...(canEditUsers ? { telefono: editPhone.trim() } : {}),
+        ...(canEditUsers ? { direccion: editAddress.trim() } : {}),
+        ...(canEditUsers ? { forma_pago: editPaymentMethod.trim() } : {}),
+        ...(canEditUsers ? { descripcion: editDescription.trim() } : {}),
         ...(canEditUsers && editPassword ? { password: editPassword } : {}),
         ...(canEditUsers || canChangeRole ? { role: editRole } : {}),
       };
@@ -451,11 +678,21 @@ function Users({
     setMessage('');
 
     try {
-      await createAdminUser(username, correo, createPassword, token, userRole);
+      await createAdminUser(
+        username,
+        correo,
+        createPassword,
+        token,
+        roleForCreation(userRole),
+        createContactName,
+        createPhone,
+      );
 
       setShowCreateModal(false);
       setCreateUsername('');
       setCreateEmail('');
+      setCreateContactName('');
+      setCreatePhone('');
       setCreatePassword('');
       setMessage(`El usuario "${username}" fue creado correctamente.`);
 
@@ -494,8 +731,9 @@ function Users({
               : 'users'
         }
         canViewProducts={canViewProducts}
-        onNavigateToUsers={() => onNavigateToUserRole('user')}
+        onNavigateToUsers={() => onNavigateToUserRole('all')}
         onNavigateToUserRole={onNavigateToUserRole}
+        onNavigateToPage={onNavigateToPage}
         onNavigateToProducts={onNavigateToProducts}
         onNavigateToRolePermissions={onNavigateToRolePermissions}
         onNavigateToProfile={onNavigateToProfile}
@@ -563,11 +801,13 @@ function Users({
                   {userRole === 'provider'
                     ? 'Proveedores registrados'
                     : userRole === 'admin'
-                      ? 'Administradores registrados'
+                      ? 'Fichas de clientes'
                       : 'Usuarios registrados'}
                 </h2>
                 <p>
-                  Listado de cuentas filtrado por rol y nivel de acceso.
+                  {userRole === 'all'
+                    ? 'Cuentas del sistema y fichas de cliente.'
+                    : 'Listado de cuentas filtrado por rol y nivel de acceso.'}
                 </p>
               </div>
 
@@ -590,8 +830,11 @@ function Users({
                   <button
                     className="users-refresh"
                     type="button"
-                    onClick={() => void loadUsers()}
-                    disabled={loading}
+                    onClick={() => {
+                      void loadUsers();
+                      if (userRole === 'all') void loadClients();
+                    }}
+                    disabled={loading || clientsLoading}
                   >
                     <span
                       className={
@@ -602,7 +845,7 @@ function Users({
                     >
                       ↻
                     </span>
-                    {loading ? 'Actualizando...' : 'Actualizar'}
+                    {loading || clientsLoading ? 'Actualizando...' : 'Actualizar'}
                   </button>
                 )}
               </div>
@@ -625,8 +868,12 @@ function Users({
                       type="search"
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Buscar por usuario, correo o ID..."
-                      aria-label={`Buscar ${rolePluralLabels[userRole]}`}
+                      placeholder="Buscar por nombre, correo, teléfono o ID..."
+                      aria-label={
+                        userRole === 'all'
+                          ? 'Buscar usuarios'
+                          : `Buscar ${rolePluralLabels[userRole]}`
+                      }
                     />
 
                     {search && (
@@ -642,54 +889,74 @@ function Users({
                   </label>
 
                   <span className="users-results-count">
-                    <strong>{filteredUsers.length}</strong> de {usersForRole.length}{' '}
+                    <strong>
+                      {filteredUsers.length +
+                        (userRole === 'all' ? filteredClients.length : 0)}
+                    </strong>{' '}
+                    de {usersForRole.length +
+                      (userRole === 'all' ? clients.length : 0)}{' '}
                     registros
                   </span>
                 </div>
 
-                {loading ? (
+                {loading || (userRole === 'all' && clientsLoading) ? (
                   <div className="users-empty">
                     <span className="users-loading-spinner" />
-                    <strong>Cargando usuarios</strong>
+                    <strong>Cargando registros</strong>
                     <span>
                       Estamos consultando los registros del sistema.
                     </span>
                   </div>
                 ) : (
+                  <>
+                  {clientsError && userRole === 'all' && (
+                    <p className="users-alert users-alert-error" role="alert">
+                      <span>!</span>
+                      {clientsError}
+                    </p>
+                  )}
                   <div className="users-table-wrapper">
                     <table className="users-table">
                       <thead>
                         <tr>
                           <th>ID</th>
-                          <th>Usuario</th>
+                          <th>Usuario / cliente</th>
                           <th>Correo electrónico</th>
-                          <th>Rol y permisos</th>
+                          <th>Teléfono</th>
+                          <th>Dirección</th>
+                          <th>Forma de pago</th>
+                          <th>Comentarios</th>
+                          <th>Rol</th>
                           <th>Estado</th>
                           {hasActions && <th>Acciones</th>}
                         </tr>
                       </thead>
 
                       <tbody>
-                        {filteredUsers.length === 0 ? (
+                        {filteredUsers.length === 0 &&
+                        (userRole !== 'all' || filteredClients.length === 0) ? (
                           <tr>
                             <td
-                              colSpan={hasActions ? 6 : 5}
+                              colSpan={hasActions ? 10 : 9}
                               className="users-empty"
                             >
                               <strong>
                                 {search
                                   ? 'No encontramos coincidencias'
-                                  : `No hay ${rolePluralLabels[userRole]} registrados.`}
+                                  : userRole === 'all'
+                                  ? 'No hay registros.'
+                                    : `No hay ${rolePluralLabels[userRole]} registrados.`}
                               </strong>
                               <span>
                                 {search
-                                  ? 'Probá con otro nombre, correo o ID.'
+                                  ? 'Probá con otro nombre, correo, teléfono o ID.'
                                   : 'Los registros aparecerán aquí.'}
                               </span>
                             </td>
                           </tr>
                         ) : (
-                          filteredUsers.map((user) => {
+                          <>
+                          {filteredUsers.map((user) => {
                             const selectedRole =
                               selectedRoles[user.id] ?? user.role;
                             const isCurrentUser =
@@ -698,7 +965,7 @@ function Users({
                             return (
                               <tr key={user.id}>
                                 <td>
-                                  <span className="users-id">#{user.id}</span>
+                                  <span className="users-id">U-#{user.id}</span>
                                 </td>
 
                                 <td>
@@ -711,12 +978,18 @@ function Users({
 
                                     <div className="users-table-user-info">
                                       <strong>{user.username}</strong>
-                                      <span>Cuenta del sistema</span>
+                                      <span>
+                                        {user.nombre_completo || 'Cuenta del sistema'}
+                                      </span>
                                     </div>
                                   </div>
                                 </td>
 
                                 <td>{user.correo || 'Sin correo'}</td>
+                                <td>{user.telefono || '—'}</td>
+                                <td>{user.direccion || '—'}</td>
+                                <td>{user.forma_pago || '—'}</td>
+                                <td>{user.descripcion || '—'}</td>
 
                                 <td>
                                   {canChangeRole ? (
@@ -728,6 +1001,7 @@ function Users({
                                         flexWrap: 'wrap',
                                       }}
                                     >
+                                      <span>{roleLabels[user.role]}</span>
                                       <select
                                         value={selectedRole}
                                         disabled={
@@ -737,8 +1011,7 @@ function Users({
                                         onChange={(event) =>
                                           setSelectedRoles((previous) => ({
                                             ...previous,
-                                            [user.id]: event.target
-                                              .value as UserRole,
+                                            [user.id]: event.target.value as UserRole,
                                           }))
                                         }
                                         aria-label={`Rol de ${user.username}`}
@@ -833,25 +1106,104 @@ function Users({
                                 ) : null}
                               </tr>
                             );
-                          })
+                          })}
+                          {userRole === 'all' &&
+                            filteredClients.map((client) => (
+                              <tr key={`client-${client.id}`}>
+                                <td>
+                                  <span className="users-id">
+                                    C-#{client.id}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div className="users-table-user">
+                                    <div className="users-table-avatar">
+                                      {client.nombre.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="users-table-user-info">
+                                      <strong>{client.nombre}</strong>
+                                      <span>Ficha cliente</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td>{client.correo}</td>
+                                <td>{client.telefono}</td>
+                                <td>{client.direccion || '—'}</td>
+                                <td>{client.forma_pago || '—'}</td>
+                                <td>{client.descripcion || '—'}</td>
+                                <td>Cliente</td>
+                                <td>
+                                  <span className="users-account-status">
+                                    <span className="users-status-dot" />
+                                    Registrado
+                                  </span>
+                                </td>
+                                {hasActions && (
+                                  <td>
+                                    {canEditUsers && (
+                                      <button
+                                        className="users-edit-button"
+                                        type="button"
+                                        onClick={() => openEditClient(client)}
+                                        aria-label={`Editar ficha de ${client.nombre}`}
+                                        title={`Editar ficha de ${client.nombre}`}
+                                      >
+                                        <svg
+                                          aria-hidden="true"
+                                          viewBox="0 0 24 24"
+                                          className="users-edit-icon"
+                                        >
+                                          <path d="M12 20h9" />
+                                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
+                                        </svg>
+                                        <span className="users-visually-hidden">
+                                          Editar ficha de {client.nombre}
+                                        </span>
+                                      </button>
+                                    )}
+                                    {canDeleteUsers && (
+                                      <button
+                                        className="users-delete"
+                                        type="button"
+                                        onClick={() =>
+                                          void handleDeleteClient(client)
+                                        }
+                                      >
+                                        <span>×</span>
+                                        Eliminar
+                                      </button>
+                                    )}
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                          </>
                         )}
                       </tbody>
                     </table>
                   </div>
-                )}
-              </>
+                      </>
+                    )}
+                  </>
             )}
 
             <footer className="users-table-footer">
               <span>
                 Mostrando{' '}
-                <strong>{canViewUsers ? filteredUsers.length : 0}</strong>{' '}
-                {rolePluralLabels[userRole]}
+                <strong>
+                  {canViewUsers
+                    ? filteredUsers.length +
+                      (userRole === 'all' ? filteredClients.length : 0)
+                    : 0}
+                </strong>{' '}
+                {userRole === 'all'
+                  ? 'registros'
+                  : rolePluralLabels[userRole]}
               </span>
 
               <span className="users-table-footer-status">
                 <span className="users-status-dot" />
-                Directorio del sistema
+                Directorio de usuarios y clientes
               </span>
             </footer>
           </section>
@@ -888,8 +1240,13 @@ function Users({
 
                 <div>
                   <span className="users-section-eyebrow">NUEVA CUENTA</span>
-                  <h2 id="users-modal-title">Crear usuario</h2>
-                  <p>Agregá una cuenta al directorio de SYSDESK.</p>
+                  <h2 id="users-modal-title">
+                    Crear {roleLabels[roleForCreation(userRole)].toLowerCase()}
+                  </h2>
+                  <p>
+                    La cuenta se registrará con el rol de{' '}
+                    {roleLabels[roleForCreation(userRole)].toLowerCase()}.
+                  </p>
                 </div>
               </div>
 
@@ -945,6 +1302,30 @@ function Users({
               </label>
 
               <label className="users-modal-field">
+                <span>Nombre de contacto</span>
+                <input
+                  type="text"
+                  value={createContactName}
+                  onChange={(event) => setCreateContactName(event.target.value)}
+                  maxLength={150}
+                  autoComplete="name"
+                  disabled={creatingUser}
+                />
+              </label>
+
+              <label className="users-modal-field">
+                <span>Teléfono</span>
+                <input
+                  type="tel"
+                  value={createPhone}
+                  onChange={(event) => setCreatePhone(event.target.value)}
+                  maxLength={30}
+                  autoComplete="tel"
+                  disabled={creatingUser}
+                />
+              </label>
+
+              <label className="users-modal-field">
                 <span>Contraseña</span>
                 <input
                   type="password"
@@ -984,6 +1365,143 @@ function Users({
           </section>
         </div>
       )}
+      {editingClient && canEditUsers && (
+        <div
+          className="users-modal-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !savingClient) {
+              setEditingClient(null);
+              setEditClientError('');
+            }
+          }}
+        >
+          <section
+            className="users-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="users-edit-client-title"
+          >
+            <header className="users-modal-header">
+              <div className="users-modal-heading">
+                <div className="users-modal-icon" aria-hidden="true">
+                  ✎
+                </div>
+                <div>
+                  <span className="users-section-eyebrow">EDITAR FICHA</span>
+                  <h2 id="users-edit-client-title">Editar cliente</h2>
+                </div>
+              </div>
+              <button
+                className="users-modal-close"
+                type="button"
+                onClick={() => {
+                  setEditingClient(null);
+                  setEditClientError('');
+                }}
+                disabled={savingClient}
+                aria-label="Cerrar ventana"
+              >
+                ×
+              </button>
+            </header>
+
+            <form className="users-modal-form" onSubmit={handleEditClient}>
+              {editClientError && (
+                <p className="users-alert users-alert-error" role="alert">
+                  {editClientError}
+                </p>
+              )}
+              <label className="users-modal-field">
+                <span>Nombre</span>
+                <input
+                  type="text"
+                  value={editClientName}
+                  onChange={(event) => setEditClientName(event.target.value)}
+                  maxLength={150}
+                  required
+                  disabled={savingClient}
+                />
+              </label>
+              <label className="users-modal-field">
+                <span>Correo electrónico</span>
+                <input
+                  type="email"
+                  value={editClientEmail}
+                  onChange={(event) => setEditClientEmail(event.target.value)}
+                  maxLength={150}
+                  required
+                  disabled={savingClient}
+                />
+              </label>
+              <label className="users-modal-field">
+                <span>Teléfono</span>
+                <input
+                  type="tel"
+                  value={editClientPhone}
+                  onChange={(event) => setEditClientPhone(event.target.value)}
+                  maxLength={30}
+                  required
+                  disabled={savingClient}
+                />
+              </label>
+              <label className="users-modal-field">
+                <span>Dirección</span>
+                <textarea
+                  value={editClientAddress}
+                  onChange={(event) => setEditClientAddress(event.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  disabled={savingClient}
+                />
+              </label>
+              <label className="users-modal-field">
+                <span>Forma de pago</span>
+                <input
+                  type="text"
+                  value={editClientPaymentMethod}
+                  onChange={(event) =>
+                    setEditClientPaymentMethod(event.target.value)
+                  }
+                  maxLength={100}
+                  disabled={savingClient}
+                />
+              </label>
+              <label className="users-modal-field">
+                <span>Descripción / comentarios</span>
+                <textarea
+                  value={editClientDescription}
+                  onChange={(event) =>
+                    setEditClientDescription(event.target.value)
+                  }
+                  maxLength={2000}
+                  rows={4}
+                  disabled={savingClient}
+                />
+              </label>
+              <div className="users-modal-actions">
+                <button
+                  className="users-refresh"
+                  type="button"
+                  onClick={() => {
+                    setEditingClient(null);
+                    setEditClientError('');
+                  }}
+                  disabled={savingClient}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="users-create-button"
+                  type="submit"
+                  disabled={savingClient}
+                >
+                  {savingClient ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
 
       {editingUser && (canEditUsers || canChangeRole) && (
         <div
@@ -1010,7 +1528,7 @@ function Users({
                 <div>
                   <span className="users-section-eyebrow">EDITAR CUENTA</span>
                   <h2 id="users-edit-modal-title">Editar usuario</h2>
-                  <p>Actualizá el nombre, contraseña o rol de la cuenta.</p>
+                  <p>Actualizá los datos de contacto o el rol de la cuenta.</p>
                 </div>
               </div>
 
@@ -1034,7 +1552,6 @@ function Users({
                   {editError}
                 </p>
               )}
-
               {canEditUsers && (
                 <>
                   <label className="users-modal-field">
@@ -1053,6 +1570,20 @@ function Users({
                   </label>
 
                   <label className="users-modal-field">
+                    <span>Nombre de contacto</span>
+                    <input
+                      type="text"
+                      value={editContactName}
+                      onChange={(event) =>
+                        setEditContactName(event.target.value)
+                      }
+                      maxLength={150}
+                      autoComplete="name"
+                      disabled={savingUser}
+                    />
+                  </label>
+
+                  <label className="users-modal-field">
                     <span>Correo electrónico</span>
                     <input
                       type="email"
@@ -1061,6 +1592,56 @@ function Users({
                       maxLength={150}
                       autoComplete="email"
                       required
+                      disabled={savingUser}
+                    />
+                  </label>
+
+                  <label className="users-modal-field">
+                    <span>Teléfono</span>
+                    <input
+                      type="tel"
+                      value={editPhone}
+                      onChange={(event) => setEditPhone(event.target.value)}
+                      maxLength={30}
+                      autoComplete="tel"
+                      disabled={savingUser}
+                    />
+                  </label>
+
+                  <label className="users-modal-field">
+                    <span>Dirección</span>
+                    <textarea
+                      value={editAddress}
+                      onChange={(event) => setEditAddress(event.target.value)}
+                      maxLength={500}
+                      autoComplete="street-address"
+                      rows={2}
+                      disabled={savingUser}
+                    />
+                  </label>
+
+                  <label className="users-modal-field">
+                    <span>Forma de pago</span>
+                    <input
+                      type="text"
+                      value={editPaymentMethod}
+                      onChange={(event) =>
+                        setEditPaymentMethod(event.target.value)
+                      }
+                      maxLength={100}
+                      disabled={savingUser}
+                    />
+                  </label>
+
+                  <label className="users-modal-field">
+                    <span>Descripción / comentarios</span>
+                    <textarea
+                      value={editDescription}
+                      onChange={(event) =>
+                        setEditDescription(event.target.value)
+                      }
+                      maxLength={2000}
+                      rows={4}
                       disabled={savingUser}
                     />
                   </label>

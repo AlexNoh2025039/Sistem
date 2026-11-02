@@ -20,6 +20,13 @@ import {
 } from './controllers/userController.js';
 
 import {
+  createAdminClient,
+  updateAdminClient,
+  deleteAdminClient,
+  listAdminClients,
+} from './controllers/clientController.js';
+
+import {
   getProfile,
   updateProfile,
   saveProfilePhoto,
@@ -39,12 +46,18 @@ import {
 } from './middlewares/uploadMiddleware.js';
 
 import {
+  listAdminProviders,
+  createAdminProvider,
+  updateAdminProvider,
+  deleteAdminProvider,
   getProviderProfile,
   saveProviderProfile,
 } from './controllers/providerController.js';
 
 import {
   listProducts,
+  listAdminProducts,
+  createAdminProduct,
   getProductById,
   listMyProducts,
   createProduct,
@@ -153,6 +166,38 @@ app.post(
   registerUser,
 );
 
+app.post(
+  '/api/admin/clients',
+  verifyToken,
+  adminOnly,
+  requirePermission('users.create'),
+  createAdminClient,
+);
+
+app.get(
+  '/api/admin/clients',
+  verifyToken,
+  adminOnly,
+  requirePermission('users.view'),
+  listAdminClients,
+);
+
+app.put(
+  '/api/admin/clients/:id',
+  verifyToken,
+  adminOnly,
+  requirePermission('users.edit'),
+  updateAdminClient,
+);
+
+app.delete(
+  '/api/admin/clients/:id',
+  verifyToken,
+  adminOnly,
+  requirePermission('users.delete'),
+  deleteAdminClient,
+);
+
 app.get(
   '/api/users',
   verifyToken,
@@ -245,18 +290,53 @@ app.put(
 app.get('/api/products', listProducts);
 app.get('/api/products/:id', getProductById);
 
+app.get(
+  '/api/admin/products',
+  verifyToken,
+  adminOnly,
+  listAdminProducts,
+);
+
+app.get(
+  '/api/admin/providers',
+  verifyToken,
+  adminOnly,
+  listAdminProviders,
+);
+
+app.post(
+  '/api/admin/providers',
+  verifyToken,
+  adminOnly,
+  createAdminProvider,
+);
+
+app.put(
+  '/api/admin/providers/:id',
+  verifyToken,
+  adminOnly,
+  updateAdminProvider,
+);
+
+app.delete(
+  '/api/admin/providers/:id',
+  verifyToken,
+  adminOnly,
+  deleteAdminProvider,
+);
+
 // Productos propios del administrador o proveedor.
 app.get(
   '/api/provider/products',
   verifyToken,
-  requirePermission('products.view'),
+  adminOnly,
   listMyProducts,
 );
 
 app.post(
   '/api/provider/products',
   verifyToken,
-  requirePermission('products.publish'),
+  adminOnly,
   handleProductImageUpload,
   createProduct,
 );
@@ -264,7 +344,7 @@ app.post(
 app.put(
   '/api/provider/products/:id',
   verifyToken,
-  requirePermission('products.edit'),
+  adminOnly,
   handleProductImageUpload,
   updateProduct,
 );
@@ -272,7 +352,7 @@ app.put(
 app.patch(
   '/api/provider/products/:id/deactivate',
   verifyToken,
-  requirePermission('products.deactivate'),
+  adminOnly,
   deactivateProduct,
 );
 
@@ -283,6 +363,14 @@ app.get(
   userOnly,
   requirePermission('cart.manage'),
   getCart,
+);
+
+app.post(
+  '/api/admin/products',
+  verifyToken,
+  adminOnly,
+  handleProductImageUpload,
+  createAdminProduct,
 );
 
 app.post(

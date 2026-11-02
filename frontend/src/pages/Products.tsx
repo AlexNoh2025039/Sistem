@@ -1,19 +1,22 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
+  getAdminProducts,
   getMyProducts,
   getPhotoUrl,
   deactivateProduct,
   type Product,
 } from '../services/api'
 import type { UserRole } from '../services/api'
-import AdminSidebar from '../components/AdminSidebar'
+import AdminSidebar, { type AdminPage } from '../components/AdminSidebar'
 import '../styles/Products.css'
 
 interface AdminNavigation {
   canViewProducts: boolean
+  readOnlyCatalog?: boolean
   onNavigateToUsers: () => void
-  onNavigateToUserRole?: (role: UserRole) => void
+  onNavigateToUserRole?: (role: UserRole | 'all') => void
+  onNavigateToPage: (page: AdminPage) => void
   onNavigateToRolePermissions: () => void
 }
 
@@ -37,6 +40,7 @@ function Products({
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null)
+  const isReadOnlyCatalog = adminNavigation?.readOnlyCatalog === true
 
   const loadProducts = useCallback(async () => {
     const token = localStorage.getItem('token')
@@ -51,19 +55,21 @@ function Products({
       setLoading(true)
       setError('')
 
-      const data = await getMyProducts(token)
+      const data = isReadOnlyCatalog
+        ? await getAdminProducts(token)
+        : await getMyProducts(token)
       setProducts(data)
     } catch (err) {
-      console.error('Error al cargar tus productos:', err)
+      console.error('Error al cargar los productos:', err)
       setError(
         err instanceof Error
           ? err.message
-          : 'No se pudieron cargar tus productos.',
+          : 'No se pudieron cargar los productos.',
       )
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isReadOnlyCatalog])
 
   useEffect(() => {
     void loadProducts()
@@ -135,6 +141,7 @@ function Products({
           canViewProducts={adminNavigation.canViewProducts}
           onNavigateToUsers={adminNavigation.onNavigateToUsers}
           onNavigateToUserRole={adminNavigation.onNavigateToUserRole}
+          onNavigateToPage={adminNavigation.onNavigateToPage}
           onNavigateToRolePermissions={
             adminNavigation.onNavigateToRolePermissions
           }
@@ -149,8 +156,12 @@ function Products({
         <div className="products-brand">
           <div className="products-brand-icon">P</div>
           <div>
-            <h1>Mi inventario</h1>
-            <p>Administrá los productos de tu negocio.</p>
+            <h1>{isReadOnlyCatalog ? 'Productos' : 'Mi inventario'}</h1>
+            <p>
+              {isReadOnlyCatalog
+                ? 'Consulta los productos registrados en el sistema.'
+                : 'Administrá los productos de tu negocio.'}
+            </p>
           </div>
         </div>
 
@@ -176,12 +187,21 @@ function Products({
       <section className="products-welcome">
         <div>
           <span className="products-eyebrow">
-            {adminNavigation ? 'PANEL DE ADMINISTRACIÓN' : 'PANEL DEL PROVEEDOR'}
+            {isReadOnlyCatalog
+              ? 'CATÁLOGO DEL SISTEMA'
+              : adminNavigation
+                ? 'PANEL DE ADMINISTRACIÓN'
+                : 'PANEL DEL PROVEEDOR'}
           </span>
-          <h2>Administrá tus productos</h2>
+          <h2>
+            {isReadOnlyCatalog
+              ? 'Productos existentes'
+              : 'Administrá tus productos'}
+          </h2>
           <p>
-            Creá productos, actualizá sus datos y controlá las existencias
-            de tu negocio.
+            {isReadOnlyCatalog
+              ? 'Listado de productos registrados, incluidos los inactivos.'
+              : 'Creá productos, actualizá sus datos y controlá las existencias de tu negocio.'}
           </p>
         </div>
 
@@ -195,13 +215,15 @@ function Products({
             ↻ Actualizar
           </button>
 
-          <button
-            type="button"
-            className="products-primary-button"
-            onClick={onCreateProduct}
-          >
-            + Nuevo producto
-          </button>
+          {!isReadOnlyCatalog && (
+            <button
+              type="button"
+              className="products-primary-button"
+              onClick={onCreateProduct}
+            >
+              + Nuevo producto
+            </button>
+          )}
         </div>
       </section>
 
@@ -261,7 +283,7 @@ function Products({
       <section className="products-catalog">
         <div className="products-catalog-header">
           <div>
-            <h2>Mis productos</h2>
+            <h2>{isReadOnlyCatalog ? 'Productos' : 'Mis productos'}</h2>
             <p>
               {products.length}{' '}
               {products.length === 1
@@ -274,20 +296,32 @@ function Products({
         {loading ? (
           <div className="products-empty-state">
             <div className="products-loader" />
-            <p>Cargando tu inventario...</p>
+            <p>
+              {isReadOnlyCatalog
+                ? 'Cargando productos...'
+                : 'Cargando tu inventario...'}
+            </p>
           </div>
         ) : products.length === 0 ? (
           <div className="products-empty-state">
             <span className="products-empty-icon">▦</span>
-            <h3>Aún no tenés productos</h3>
-            <p>Creá tu primer producto para comenzar a publicarlo.</p>
-            <button
-              type="button"
-              className="products-primary-button"
-              onClick={onCreateProduct}
-            >
-              + Crear producto
-            </button>
+            <h3>
+              {isReadOnlyCatalog
+                ? 'No hay productos registrados'
+                : 'Aún no tenés productos'}
+            </h3>
+            {!isReadOnlyCatalog && (
+              <>
+                <p>Creá tu primer producto para comenzar a publicarlo.</p>
+                <button
+                  type="button"
+                  className="products-primary-button"
+                  onClick={onCreateProduct}
+                >
+                  + Crear producto
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="products-grid">
@@ -362,8 +396,9 @@ function Products({
                       </div>
                     </div>
 
-                    <div className="product-card-actions">
-                      {product.activo && (
+                    {!isReadOnlyCatalog && (
+                      <div className="product-card-actions">
+                        {product.activo && (
                         <>
                           <button
                             type="button"
@@ -384,8 +419,9 @@ function Products({
                               : 'Desactivar'}
                           </button>
                         </>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </article>
               )

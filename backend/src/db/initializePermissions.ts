@@ -13,10 +13,6 @@ const defaultPermissions: Array<{
   { key: 'users.delete', allowedRoles: ['admin'] },
   { key: 'users.role.change', allowedRoles: ['admin'] },
   { key: 'permissions.manage', allowedRoles: ['admin'] },
-  { key: 'products.view', allowedRoles: ['admin', 'user', 'provider'] },
-  { key: 'products.publish', allowedRoles: ['admin', 'provider'] },
-  { key: 'products.edit', allowedRoles: ['admin', 'provider'] },
-  { key: 'products.deactivate', allowedRoles: ['admin', 'provider'] },
   { key: 'orders.view', allowedRoles: ['admin', 'user', 'provider'] },
   { key: 'cart.manage', allowedRoles: ['user'] },
   { key: 'orders.create', allowedRoles: ['user'] },
@@ -28,6 +24,54 @@ export const initializePermissions = async (): Promise<void> => {
 
   try {
     await client.query('BEGIN');
+
+    await client.query(`
+      ALTER TABLE public.usuarios
+        ADD COLUMN IF NOT EXISTS nombre_completo VARCHAR(150),
+        ADD COLUMN IF NOT EXISTS telefono VARCHAR(30),
+        ADD COLUMN IF NOT EXISTS direccion VARCHAR(500),
+        ADD COLUMN IF NOT EXISTS forma_pago VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS descripcion VARCHAR(2000)
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.clientes (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(150) NOT NULL,
+        correo VARCHAR(150) NOT NULL UNIQUE,
+        telefono VARCHAR(30) NOT NULL,
+        direccion VARCHAR(500),
+        descripcion VARCHAR(2000),
+        forma_pago VARCHAR(100),
+        creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      ALTER TABLE public.clientes
+        ADD COLUMN IF NOT EXISTS direccion VARCHAR(500),
+        ADD COLUMN IF NOT EXISTS descripcion VARCHAR(2000),
+        ADD COLUMN IF NOT EXISTS forma_pago VARCHAR(100)
+    `);
+
+    await client.query(`
+      ALTER TABLE public.proveedores
+        ADD COLUMN IF NOT EXISTS nit VARCHAR(30),
+        ADD COLUMN IF NOT EXISTS nombre_proveedor VARCHAR(120),
+        ADD COLUMN IF NOT EXISTS contacto VARCHAR(120),
+        ADD COLUMN IF NOT EXISTS telefono_2 VARCHAR(30)
+    `);
+
+    await client.query(`
+      ALTER TABLE public.proveedores
+      ALTER COLUMN usuario_id DROP NOT NULL
+    `);
+
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS proveedores_nit_unique
+      ON public.proveedores (nit)
+      WHERE nit IS NOT NULL AND nit <> ''
+    `);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.role_permissions (
@@ -86,6 +130,26 @@ export const initializePermissions = async (): Promise<void> => {
        ON CONFLICT (role, permission_key) DO NOTHING`,
       parameters,
     );
+
+    await client.query(`
+      DELETE FROM public.role_permissions
+      WHERE permission_key IN (
+        'products.view',
+        'products.publish',
+        'products.edit',
+        'products.deactivate'
+      )
+    `);
+
+    await client.query(`
+      DELETE FROM public.user_permission_overrides
+      WHERE permission_key IN (
+        'products.view',
+        'products.publish',
+        'products.edit',
+        'products.deactivate'
+      )
+    `);
 
     await client.query(`
       INSERT INTO public.user_permission_overrides

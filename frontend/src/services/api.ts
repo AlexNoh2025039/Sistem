@@ -35,6 +35,11 @@ export interface ManagedUser {
   id: number
   username: string
   correo: string | null
+  nombre_completo?: string | null
+  telefono?: string | null
+  direccion?: string | null
+  forma_pago?: string | null
+  descripcion?: string | null
   role: UserRole
   saldo?: string | number
 }
@@ -42,8 +47,27 @@ export interface ManagedUser {
 export interface ManagedUserUpdate {
   username?: string
   correo?: string
+  nombre_completo?: string
+  telefono?: string
+  direccion?: string
+  forma_pago?: string
+  descripcion?: string
   password?: string
   role?: UserRole
+}
+
+export interface AdminClientInput {
+  nombre: string
+  correo: string
+  telefono: string
+  direccion?: string
+  descripcion?: string
+  forma_pago?: string
+}
+
+export interface AdminClient extends AdminClientInput {
+  id: number
+  creado_en: string
 }
 
 export interface LoginResponse {
@@ -83,18 +107,50 @@ export interface ProfileInput {
 export interface ProviderProfile {
   id: number
   usuario_id: number
+  nit: string | null
   nombre_empresa: string
   descripcion: string | null
+  contacto: string | null
   telefono: string | null
+  telefono_2: string | null
   correo: string | null
   direccion: string | null
   creado_en: string
 }
 
+export interface AdminProvider {
+  id: number
+  usuario_id: number | null
+  username: string | null
+  nombre_proveedor: string | null
+  nit: string | null
+  nombre_empresa: string | null
+  contacto: string | null
+  telefono: string | null
+  telefono_2: string | null
+  correo: string | null
+  direccion: string | null
+  creado_en: string
+}
+
+export interface AdminProviderInput {
+  nombre_proveedor: string
+  correo: string
+  nit: string
+  nombre_empresa: string
+  contacto: string
+  telefono: string
+  telefono_2: string
+  direccion: string
+}
+
 export interface ProviderProfileInput {
   nombre_empresa: string
   descripcion: string
+  nit?: string
+  contacto?: string
   telefono: string
+  telefono_2?: string
   correo: string
   direccion: string
 }
@@ -113,6 +169,8 @@ export interface Product {
   activo: boolean
   creado_en: string
   actualizado_en: string
+  nombre_empresa?: string
+  nombre_proveedor?: string | null
 }
 
 export interface ProductInput {
@@ -163,8 +221,16 @@ async function readResponse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}))
 
   if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        'El backend desplegado no tiene esta ruta. Actualizá o redeployá el servicio de backend en Render.',
+      )
+    }
+
     throw new Error(
-      data.error || data.message || 'Ocurrió un error en la solicitud.',
+      data.error ||
+        data.message ||
+        `Ocurrió un error en la solicitud (HTTP ${response.status}).`,
     )
   }
 
@@ -234,6 +300,8 @@ export async function createAdminUser(
   password: string,
   token: string,
   role: UserRole = 'user',
+  nombreCompleto = '',
+  telefono = '',
 ): Promise<RegisterResponse> {
   const response = await fetch(`${API_URL}/admin/users`, {
     method: 'POST',
@@ -246,10 +314,65 @@ export async function createAdminUser(
       correo: correo.trim().toLowerCase(),
       password,
       role,
+      nombre_completo: nombreCompleto.trim(),
+      telefono: telefono.trim(),
     }),
   })
 
   return readResponse<RegisterResponse>(response)
+}
+
+export async function createAdminClient(
+  client: AdminClientInput,
+  token: string,
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_URL}/admin/clients`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(client),
+  })
+
+  return readResponse<{ message: string }>(response)
+}
+
+export async function getAdminClients(token: string): Promise<AdminClient[]> {
+  const response = await fetch(`${API_URL}/admin/clients`, {
+    headers: authHeaders(token),
+  })
+
+  return readResponse<AdminClient[]>(response)
+}
+
+export async function updateAdminClient(
+  clientId: number,
+  client: AdminClientInput,
+  token: string,
+): Promise<{ message: string; client: AdminClient }> {
+  const response = await fetch(`${API_URL}/admin/clients/${clientId}`, {
+    method: 'PUT',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(client),
+  })
+
+  return readResponse<{ message: string; client: AdminClient }>(response)
+}
+
+export async function deleteAdminClient(
+  clientId: number,
+  token: string,
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_URL}/admin/clients/${clientId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  })
+
+  return readResponse<{ message: string }>(response)
 }
 
 export async function getUsers(token: string): Promise<ManagedUser[]> {
@@ -489,6 +612,59 @@ export async function saveProviderProfile(
   return readResponse<{ message: string; profile: ProviderProfile }>(response)
 }
 
+export async function getAdminProviders(token: string): Promise<AdminProvider[]> {
+  const response = await fetch(`${API_URL}/admin/providers`, {
+    headers: authHeaders(token),
+  })
+
+  return readResponse<AdminProvider[]>(response)
+}
+
+export async function createAdminProvider(
+  provider: AdminProviderInput,
+  token: string,
+): Promise<{ message: string; provider: AdminProvider }> {
+  const response = await fetch(`${API_URL}/admin/providers`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(provider),
+  })
+
+  return readResponse<{ message: string; provider: AdminProvider }>(response)
+}
+
+export async function updateAdminProvider(
+  providerId: number,
+  provider: AdminProviderInput,
+  token: string,
+): Promise<{ message: string; provider: AdminProvider }> {
+  const response = await fetch(`${API_URL}/admin/providers/${providerId}`, {
+    method: 'PUT',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(provider),
+  })
+
+  return readResponse<{ message: string; provider: AdminProvider }>(response)
+}
+
+export async function deleteAdminProvider(
+  providerId: number,
+  token: string,
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_URL}/admin/providers/${providerId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  })
+
+  return readResponse<{ message: string }>(response)
+}
+
 // PRODUCTOS
 
 export async function getProducts(): Promise<Product[]> {
@@ -498,6 +674,14 @@ export async function getProducts(): Promise<Product[]> {
 
 export async function getMyProducts(token: string): Promise<Product[]> {
   const response = await fetch(`${API_URL}/provider/products`, {
+    headers: authHeaders(token),
+  })
+
+  return readResponse<Product[]>(response)
+}
+
+export async function getAdminProducts(token: string): Promise<Product[]> {
+  const response = await fetch(`${API_URL}/admin/products`, {
     headers: authHeaders(token),
   })
 
@@ -540,6 +724,24 @@ export async function createProduct(
     method: 'POST',
     headers: authHeaders(token),
     body: buildProductFormData(product, image),
+  })
+
+  return readResponse<{ message: string; product?: Product }>(response)
+}
+
+export async function createAdminProduct(
+  product: ProductInput,
+  providerId: number,
+  token: string,
+  image?: File | null,
+): Promise<{ message: string; product?: Product }> {
+  const formData = buildProductFormData(product, image)
+  formData.append('proveedor_id', String(providerId))
+
+  const response = await fetch(`${API_URL}/admin/products`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: formData,
   })
 
   return readResponse<{ message: string; product?: Product }>(response)

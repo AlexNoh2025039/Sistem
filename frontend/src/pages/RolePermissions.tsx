@@ -10,12 +10,13 @@ import type {
   UserRole,
   UserPermission,
 } from '../services/api'
-import AdminSidebar from '../components/AdminSidebar'
+import AdminSidebar, { type AdminPage } from '../components/AdminSidebar'
 import '../styles/RolePermissions.css'
 
 interface RolePermissionsProps {
   onNavigateToUsers: () => void
-  onNavigateToUserRole: (role: UserRole) => void
+  onNavigateToUserRole: (role: UserRole | 'all') => void
+  onNavigateToPage: (page: AdminPage) => void
   onNavigateToProducts: () => void
   onNavigateToProfile: () => void
   canViewProducts: boolean
@@ -43,10 +44,6 @@ const permissionLabels: Record<string, string> = {
   'users.delete': 'Eliminar usuarios',
   'users.role.change': 'Cambiar roles',
   'permissions.manage': 'Administrar permisos',
-  'products.view': 'Ver productos',
-  'products.publish': 'Crear y publicar productos',
-  'products.edit': 'Editar productos',
-  'products.deactivate': 'Desactivar productos',
   'provider.profile.manage': 'Administrar perfil comercial',
   'cart.manage': 'Administrar carrito',
   'orders.create': 'Crear pedidos',
@@ -61,23 +58,14 @@ const rolePermissionKeys: Record<UserRole, string[]> = {
     'users.delete',
     'users.role.change',
     'permissions.manage',
-    'products.view',
-    'products.publish',
-    'products.edit',
-    'products.deactivate',
     'orders.view',
   ],
   user: [
-    'products.view',
     'cart.manage',
     'orders.create',
     'orders.view',
   ],
   provider: [
-    'products.view',
-    'products.publish',
-    'products.edit',
-    'products.deactivate',
     'provider.profile.manage',
     'orders.view',
   ],
@@ -96,15 +84,6 @@ const permissionGroups = [
     ],
   },
   {
-    title: 'Productos',
-    keys: [
-      'products.view',
-      'products.publish',
-      'products.edit',
-      'products.deactivate',
-    ],
-  },
-  {
     title: 'Perfil comercial',
     keys: ['provider.profile.manage'],
   },
@@ -117,6 +96,7 @@ const permissionGroups = [
 function RolePermissions({
   onNavigateToUsers,
   onNavigateToUserRole,
+  onNavigateToPage,
   onNavigateToProducts,
   onNavigateToProfile,
   canViewProducts,
@@ -378,6 +358,7 @@ function RolePermissions({
       canViewProducts={canViewProducts}
       onNavigateToUsers={onNavigateToUsers}
       onNavigateToUserRole={onNavigateToUserRole}
+      onNavigateToPage={onNavigateToPage}
       onNavigateToProducts={onNavigateToProducts}
       onNavigateToProfile={onNavigateToProfile}
       onLogout={handleLogout}

@@ -7,19 +7,23 @@ export type AdminPage =
   | 'providers'
   | 'admins'
   | 'create-user'
+  | 'create-provider'
+  | 'edit-provider'
   | 'products'
   | 'product-form'
   | 'role-permissions'
   | 'profile'
+  | 'create-product'
 
 interface AdminSidebarProps {
   activePage: AdminPage
   canViewProducts: boolean
   onNavigateToUsers?: () => void
-  onNavigateToUserRole?: (role: UserRole) => void
+  onNavigateToUserRole?: (role: UserRole | 'all') => void
   onNavigateToProducts?: () => void
   onNavigateToRolePermissions?: () => void
   onNavigateToProfile?: () => void
+  onNavigateToPage?: (page: AdminPage) => void
   onLogout: () => void
 }
 
@@ -31,16 +35,21 @@ function AdminSidebar({
   onNavigateToProducts,
   onNavigateToRolePermissions,
   onNavigateToProfile,
+  onNavigateToPage,
   onLogout,
 }: AdminSidebarProps) {
-  const selectedPage = activePage === 'create-user' ? 'users' : activePage
-  const isUsersPage =
+  const selectedPage = activePage
+  const isCatalogPage =
     selectedPage === 'users' ||
     selectedPage === 'providers' ||
-    selectedPage === 'admins'
-  const isProductsPage =
-    selectedPage === 'products' || selectedPage === 'product-form'
-  const [usersExpanded, setUsersExpanded] = useState(isUsersPage)
+    selectedPage === 'admins' ||
+    selectedPage === 'create-user' ||
+    selectedPage === 'create-provider' ||
+    selectedPage === 'edit-provider' ||
+    selectedPage === 'create-product' ||
+    selectedPage === 'products' ||
+    selectedPage === 'product-form'
+  const [catalogExpanded, setCatalogExpanded] = useState(isCatalogPage)
 
   return (
     <aside className="admin-sidebar">
@@ -57,60 +66,113 @@ function AdminSidebar({
       <nav className="admin-sidebar-navigation" aria-label="Navegación principal">
         <div className="admin-sidebar-users-group">
           <button
-            className={`admin-sidebar-item${isUsersPage ? ' active' : ''}`}
+            className={`admin-sidebar-item${isCatalogPage ? ' active' : ''}`}
             type="button"
             onClick={() => {
-              setUsersExpanded((expanded) => !expanded)
-              if (!isUsersPage) onNavigateToUsers?.()
+              setCatalogExpanded((expanded) => !expanded)
+              if (!isCatalogPage) onNavigateToUsers?.()
             }}
-            aria-expanded={usersExpanded}
+            aria-expanded={catalogExpanded}
           >
             <span className="admin-sidebar-icon">▦</span>
-            <span>Usuarios</span>
+            <span>Catálogo</span>
             <span
-              className={`admin-sidebar-chevron${usersExpanded ? ' expanded' : ''}`}
+              className={`admin-sidebar-chevron${catalogExpanded ? ' expanded' : ''}`}
               aria-hidden="true"
             >
               ▸
             </span>
           </button>
 
-          {usersExpanded && (
+          {catalogExpanded && (
             <div className="admin-sidebar-subnavigation">
-              {([
-                ['user', 'Usuario', 'users'],
-                ['provider', 'Proveedor', 'providers'],
-                ['admin', 'Administrador', 'admins'],
-              ] as const).map(([role, label, page]) => (
+              <button
+                className={`admin-sidebar-subitem${selectedPage === 'users' || selectedPage === 'admins' ? ' active' : ''}`}
+                type="button"
+                onClick={() => onNavigateToUserRole?.('all')}
+                aria-current={
+                  selectedPage === 'users' ||
+                  selectedPage === 'admins'
+                    ? 'page'
+                    : undefined
+                }
+              >
+                <span>Usuario</span>
+                {(selectedPage === 'users' || selectedPage === 'admins') && (
+                  <span className="admin-sidebar-indicator" />
+                )}
+              </button>
+
+              <button
+                className={`admin-sidebar-subitem${selectedPage === 'providers' ? ' active' : ''}`}
+                type="button"
+                onClick={() => onNavigateToPage?.('providers')}
+                aria-current={selectedPage === 'providers' ? 'page' : undefined}
+              >
+                <span>Proveedores</span>
+                {selectedPage === 'providers' && (
+                  <span className="admin-sidebar-indicator" />
+                )}
+              </button>
+
+              <button
+                className={`admin-sidebar-subitem${selectedPage === 'create-user' ? ' active' : ''}`}
+                type="button"
+                onClick={() => onNavigateToPage?.('create-user')}
+                aria-current={
+                  selectedPage === 'create-user' ? 'page' : undefined
+                }
+              >
+                <span>Ficha cliente</span>
+                {selectedPage === 'create-user' && (
+                  <span className="admin-sidebar-indicator" />
+                )}
+              </button>
+
+              <button
+                className={`admin-sidebar-subitem${selectedPage === 'create-provider' ? ' active' : ''}`}
+                type="button"
+                onClick={() => onNavigateToPage?.('create-provider')}
+                aria-current={
+                  selectedPage === 'create-provider' ? 'page' : undefined
+                }
+              >
+                <span>Ficha proveedor</span>
+                {selectedPage === 'create-provider' && (
+                  <span className="admin-sidebar-indicator" />
+                )}
+              </button>
+
+              <button
+                className={`admin-sidebar-subitem${selectedPage === 'create-product' ? ' active' : ''}`}
+                type="button"
+                onClick={() => onNavigateToPage?.('create-product')}
+                aria-current={
+                  selectedPage === 'create-product' ? 'page' : undefined
+                }
+              >
+                <span>Ficha producto</span>
+                {selectedPage === 'create-product' && (
+                  <span className="admin-sidebar-indicator" />
+                )}
+              </button>
+
+              {canViewProducts && (
                 <button
-                  key={role}
-                  className={`admin-sidebar-subitem${selectedPage === page ? ' active' : ''}`}
+                  className={`admin-sidebar-subitem${selectedPage === 'products' ? ' active' : ''}`}
                   type="button"
-                  onClick={() => onNavigateToUserRole?.(role)}
-                  aria-current={selectedPage === page ? 'page' : undefined}
+                  onClick={onNavigateToProducts}
+                  aria-current={selectedPage === 'products' ? 'page' : undefined}
                 >
-                  <span>{label}</span>
-                  {selectedPage === page && (
+                  <span>Productos</span>
+                  {selectedPage === 'products' && (
                     <span className="admin-sidebar-indicator" />
                   )}
                 </button>
-              ))}
+              )}
             </div>
           )}
         </div>
-
-        {canViewProducts && (
-          <button
-            className={`admin-sidebar-item${isProductsPage ? ' active' : ''}`}
-            type="button"
-            onClick={selectedPage === 'products' ? undefined : onNavigateToProducts}
-            aria-current={isProductsPage ? 'page' : undefined}
-          >
-            <span className="admin-sidebar-icon">▣</span>
-            <span>Productos</span>
-            {isProductsPage && <span className="admin-sidebar-indicator" />}
-          </button>
-        )}
 
         <button
           className={`admin-sidebar-item${selectedPage === 'role-permissions' ? ' active' : ''}`}

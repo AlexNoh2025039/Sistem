@@ -18,6 +18,8 @@ DROP TABLE IF EXISTS proveedores CASCADE;
 
 DROP TABLE IF EXISTS role_permissions CASCADE;
 
+DROP TABLE IF EXISTS clientes CASCADE;
+
 DROP TABLE IF EXISTS usuarios CASCADE;
  
 -- 2. USUARIOS
@@ -29,6 +31,16 @@ CREATE TABLE usuarios (
     username VARCHAR(120) NOT NULL UNIQUE,
 
     correo VARCHAR(150) NOT NULL UNIQUE,
+
+    nombre_completo VARCHAR(150),
+
+    telefono VARCHAR(30),
+
+    direccion VARCHAR(500),
+
+    forma_pago VARCHAR(100),
+
+    descripcion VARCHAR(2000),
 
     password VARCHAR(255) NOT NULL,
  
@@ -45,6 +57,28 @@ CREATE TABLE usuarios (
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 
 );
+
+-- 2.1 FICHAS DE CLIENTE (sin credenciales de acceso)
+
+CREATE TABLE clientes (
+
+    id SERIAL PRIMARY KEY,
+
+    nombre VARCHAR(150) NOT NULL,
+
+    correo VARCHAR(150) NOT NULL UNIQUE,
+
+    telefono VARCHAR(30) NOT NULL,
+
+    direccion VARCHAR(500),
+
+    descripcion VARCHAR(2000),
+
+    forma_pago VARCHAR(100),
+
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+
+);
  
 -- 3. PROVEEDORES
 
@@ -52,15 +86,23 @@ CREATE TABLE proveedores (
 
     id SERIAL PRIMARY KEY,
  
-    usuario_id INTEGER NOT NULL UNIQUE
+    usuario_id INTEGER UNIQUE
 
         REFERENCES usuarios(id) ON DELETE CASCADE,
  
+    nit VARCHAR(30) UNIQUE,
+
+    nombre_proveedor VARCHAR(120),
+
     nombre_empresa VARCHAR(120),
 
     descripcion TEXT,
 
+    contacto VARCHAR(120),
+
     telefono VARCHAR(30),
+
+    telefono_2 VARCHAR(30),
 
     correo VARCHAR(150),
 
@@ -269,30 +311,6 @@ VALUES
     ('provider', 'users.role.change', FALSE),
 
     ('provider', 'permissions.manage', FALSE),
- 
-    ('admin', 'products.view', TRUE),
-
-    ('admin', 'products.publish', TRUE),
-
-    ('admin', 'products.edit', TRUE),
-
-    ('admin', 'products.deactivate', TRUE),
- 
-    ('user', 'products.view', TRUE),
-
-    ('user', 'products.publish', FALSE),
-
-    ('user', 'products.edit', FALSE),
-
-    ('user', 'products.deactivate', FALSE),
- 
-    ('provider', 'products.view', TRUE),
-
-    ('provider', 'products.publish', TRUE),
-
-    ('provider', 'products.edit', TRUE),
-
-    ('provider', 'products.deactivate', TRUE),
  
     ('admin', 'provider.profile.manage', TRUE),
 

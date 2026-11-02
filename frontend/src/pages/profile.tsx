@@ -8,7 +8,7 @@ import {
   uploadProfilePhoto,
   type ProfileUser,
 } from '../services/api'
-import AdminSidebar from '../components/AdminSidebar'
+import AdminSidebar, { type AdminPage } from '../components/AdminSidebar'
 import '../styles/Users.css'
 
 type UserRole = 'admin' | 'user' | 'provider'
@@ -16,7 +16,8 @@ type ProfileTab = 'info' | 'photo' | 'password'
 
 interface ProfileProps {
   onNavigateToUsers: () => void
-  onNavigateToUserRole?: (role: UserRole) => void
+  onNavigateToUserRole?: (role: UserRole | 'all') => void
+  onNavigateToPage?: (page: AdminPage) => void
   onNavigateToCreateUser: () => void
   onNavigateToProducts?: () => void
   onNavigateToRolePermissions?: () => void
@@ -33,6 +34,7 @@ interface StoredUser {
 function Profile({
   onNavigateToUsers,
   onNavigateToUserRole,
+  onNavigateToPage,
   onNavigateToCreateUser,
   onNavigateToProducts,
   onNavigateToRolePermissions,
@@ -467,6 +469,7 @@ function Profile({
           canViewProducts={canViewProducts}
           onNavigateToUsers={onNavigateToUsers}
           onNavigateToUserRole={onNavigateToUserRole}
+          onNavigateToPage={onNavigateToPage}
           onNavigateToProducts={onNavigateToProducts}
           onNavigateToRolePermissions={onNavigateToRolePermissions}
           onLogout={handleLogout}

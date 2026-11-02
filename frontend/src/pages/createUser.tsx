@@ -1,7 +1,7 @@
 
 import { useState, type FormEvent } from 'react'
-import { createAdminUser } from '../services/api'
-import AdminSidebar from '../components/AdminSidebar'
+import { createAdminClient } from '../services/api'
+import AdminSidebar, { type AdminPage } from '../components/AdminSidebar'
 import '../styles/Users.css'
 
 interface CreateUserProps {
@@ -9,7 +9,8 @@ interface CreateUserProps {
   onUserCreated: () => void
   onNavigateToProfile: () => void
   onNavigateToUsers: () => void
-  onNavigateToUserRole: (role: 'admin' | 'provider' | 'user') => void
+  onNavigateToUserRole: (role: 'admin' | 'provider' | 'user' | 'all') => void
+  onNavigateToPage: (page: AdminPage) => void
   onNavigateToProducts: () => void
   onNavigateToRolePermissions: () => void
   canViewProducts: boolean
@@ -22,15 +23,18 @@ function CreateUser({
   onNavigateToProfile,
   onNavigateToUsers,
   onNavigateToUserRole,
+  onNavigateToPage,
   onNavigateToProducts,
   onNavigateToRolePermissions,
   canViewProducts,
   onLogout,
 }: CreateUserProps) {
-  const [username, setUsername] = useState('')
+  const [nombre, setNombre] = useState('')
   const [correo, setCorreo] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
+  const [telefono, setTelefono] = useState('')
+  const [direccion, setDireccion] = useState('')
+  const [descripcion, setDescripcion] = useState('')
+  const [formaPago, setFormaPago] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -40,18 +44,12 @@ function CreateUser({
     setError('')
     setMessage('')
 
-    const cleanUsername = username.trim()
     const cleanEmail = correo.trim().toLowerCase()
-
-    if (cleanUsername.length < 3 || cleanUsername.length > 50) {
-      setError('El usuario debe tener entre 3 y 50 caracteres.')
-      return
-    }
-
-    if (password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres.')
-      return
-    }
+    const cleanName = nombre.trim()
+    const cleanPhone = telefono.trim()
+    const cleanAddress = direccion.trim()
+    const cleanDescription = descripcion.trim()
+    const cleanPaymentMethod = formaPago.trim()
 
     if (
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) ||
@@ -61,8 +59,16 @@ function CreateUser({
       return
     }
 
-    if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden.')
+    if (
+      !cleanName ||
+      cleanName.length > 150 ||
+      !cleanPhone ||
+      cleanPhone.length > 30 ||
+      cleanAddress.length > 500 ||
+      cleanDescription.length > 2000 ||
+      cleanPaymentMethod.length > 100
+    ) {
+      setError('Ingresá un nombre y un teléfono válidos.')
       return
     }
 
@@ -76,20 +82,30 @@ function CreateUser({
     setLoading(true)
 
     try {
-      await createAdminUser(cleanUsername, cleanEmail, password, token)
+      const clientData = {
+        nombre: cleanName,
+        correo: cleanEmail,
+        telefono: cleanPhone,
+        direccion: cleanAddress,
+        descripcion: cleanDescription,
+        forma_pago: cleanPaymentMethod,
+      }
 
-      setMessage('El usuario se creó correctamente.')
-      setUsername('')
+      await createAdminClient(clientData, token)
+      setMessage('La ficha del cliente se creó correctamente.')
+
+      setNombre('')
       setCorreo('')
-      setPassword('')
-      setConfirmPassword('')
-
-      window.setTimeout(() => onUserCreated(), 1000)
+      setTelefono('')
+      setDireccion('')
+      setDescripcion('')
+      setFormaPago('')
+      window.setTimeout(onUserCreated, 900)
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : 'No se pudo crear el usuario.',
+          : 'No se pudo crear la ficha del cliente.',
       )
     } finally {
       setLoading(false)
@@ -103,6 +119,7 @@ function CreateUser({
         canViewProducts={canViewProducts}
         onNavigateToUsers={onNavigateToUsers}
         onNavigateToUserRole={onNavigateToUserRole}
+        onNavigateToPage={onNavigateToPage}
         onNavigateToProducts={onNavigateToProducts}
         onNavigateToRolePermissions={onNavigateToRolePermissions}
         onNavigateToProfile={onNavigateToProfile}
@@ -114,7 +131,7 @@ function CreateUser({
           <div className="users-breadcrumb">
             <span>Panel</span>
             <span className="users-breadcrumb-separator">/</span>
-            <strong>Crear usuario</strong>
+            <strong>Ficha cliente</strong>
           </div>
         </header>
 
@@ -125,9 +142,9 @@ function CreateUser({
                 CENTRO DE CONTROL / 02
               </span>
               <h1>
-                Crear usuario<span>.</span>
+                Ficha cliente
+                <span>.</span>
               </h1>
-              <p>Registrá una nueva cuenta para el sistema.</p>
             </div>
           </section>
 
@@ -137,62 +154,89 @@ function CreateUser({
                 <span className="users-section-eyebrow">
                   NUEVO REGISTRO
                 </span>
-                <h2>Datos de la cuenta</h2>
-                <p>Completá los campos para registrar al usuario.</p>
+                <h2>Datos del cliente</h2>
               </div>
             </div>
 
-            <form className="create-user-form" onSubmit={handleSubmit}>
-              <label>
-                Nombre de usuario
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  minLength={3}
-                  maxLength={50}
-                  autoComplete="username"
-                  required
-                />
-              </label>
-
-              <label>
-                Correo electrónico
-                <input
-                  type="email"
-                  value={correo}
-                  onChange={(event) => setCorreo(event.target.value)}
-                  maxLength={150}
-                  autoComplete="email"
-                  required
-                />
-              </label>
-
-              <label>
-                Contraseña
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="new-password"
-                  required
-                />
-              </label>
-
-              <label>
-                Confirmar contraseña
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  autoComplete="new-password"
-                  required
-                />
-              </label>
-
-              <p className="create-user-note">
-                La cuenta se creará con el rol de usuario estándar.
-              </p>
+            <form className="customer-create-form" onSubmit={handleSubmit}>
+              <div className="customer-create-section">
+                <div className="customer-create-heading">
+                  <span className="customer-create-step">01</span>
+                  <div>
+                    <h3>Información de contacto</h3>
+                  </div>
+                </div>
+                <div className="customer-create-grid">
+                  <label className="users-modal-field">
+                    <span>Nombre</span>
+                    <input
+                      type="text"
+                      value={nombre}
+                      onChange={(event) => setNombre(event.target.value)}
+                      maxLength={150}
+                      autoComplete="name"
+                      required
+                      disabled={loading}
+                    />
+                  </label>
+                  <label className="users-modal-field">
+                    <span>Correo electrónico</span>
+                    <input
+                      type="email"
+                      value={correo}
+                      onChange={(event) => setCorreo(event.target.value)}
+                      maxLength={150}
+                      autoComplete="email"
+                      required
+                      disabled={loading}
+                    />
+                  </label>
+                  <label className="users-modal-field">
+                    <span>Teléfono principal</span>
+                    <input
+                      type="tel"
+                      value={telefono}
+                      onChange={(event) => setTelefono(event.target.value)}
+                      maxLength={30}
+                      autoComplete="tel"
+                      required
+                      disabled={loading}
+                    />
+                  </label>
+                  <label className="users-modal-field">
+                    <span>Dirección</span>
+                    <textarea
+                      value={direccion}
+                      onChange={(event) => setDireccion(event.target.value)}
+                      maxLength={500}
+                      autoComplete="street-address"
+                      disabled={loading}
+                      rows={2}
+                    />
+                  </label>
+                  <label className="users-modal-field">
+                    <span>Forma de pago</span>
+                    <input
+                      type="text"
+                      value={formaPago}
+                      onChange={(event) => setFormaPago(event.target.value)}
+                      maxLength={100}
+                      placeholder="Ej. efectivo, transferencia"
+                      disabled={loading}
+                    />
+                  </label>
+                  <label className="users-modal-field customer-create-full">
+                    <span>Descripción / comentarios</span>
+                    <textarea
+                      value={descripcion}
+                      onChange={(event) => setDescripcion(event.target.value)}
+                      maxLength={2000}
+                      disabled={loading}
+                      rows={4}
+                    />
+                  </label>
+                </div>
+              </div>
 
               {error && (
                 <p role="alert" className="users-alert users-alert-error">
@@ -221,7 +265,7 @@ function CreateUser({
                   type="submit"
                   disabled={loading}
                 >
-                  {loading ? 'Creando...' : 'Crear cuenta'}
+                  {loading ? 'Guardando...' : 'Guardar ficha'}
                 </button>
               </div>
             </form>

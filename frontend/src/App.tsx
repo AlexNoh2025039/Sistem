@@ -10,7 +10,10 @@ import PublicProducts from './pages/PublicProducts';
 import Cart from './pages/Cart';
 import Orders from './pages/Orders';
 import RolePermissions from './pages/RolePermissions';
-import type { Product, UserRole } from './services/api';
+import ProviderForm from './pages/ProviderForm';
+import Providers from './pages/Providers';
+import type { AdminPage } from './components/AdminSidebar';
+import type { AdminProvider, Product, UserRole } from './services/api';
 import './index.css';
 import './styles/Design3D.css';
 
@@ -21,6 +24,9 @@ type Page =
   | 'providers'
   | 'admins'
   | 'create-user'
+  | 'create-provider'
+  | 'edit-provider'
+  | 'create-product'
   | 'profile'
   | 'products'
   | 'product-form'
@@ -70,7 +76,7 @@ function getInitialPage(): Page {
   const user = getStoredUser();
 
   if (user?.role === 'admin') return 'users';
-  if (user?.role === 'provider') return 'products';
+  if (user?.role === 'provider') return 'profile';
   if (user?.role === 'user') return 'public-products';
 
   return 'login';
@@ -83,6 +89,8 @@ function App() {
 
   const [currentPage, setCurrentPage] = useState<Page>(getInitialPage);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProvider, setSelectedProvider] =
+    useState<AdminProvider | null>(null);
 
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [permissionsLoading, setPermissionsLoading] = useState(
@@ -92,8 +100,7 @@ function App() {
 
   const user = getStoredUser();
 
-  const canViewProducts =
-    user?.role === 'admin' && permissions['products.view'] === true;
+  const canViewProducts = user?.role === 'admin';
 
   useEffect(() => {
     if (!localStorage.getItem('token') || !getStoredUser()) {
@@ -224,15 +231,21 @@ function App() {
     }
   };
 
-  const handleUserCreated = () => {
-    setCurrentPage('login');
-    setIsAuthenticated(false);
-  };
+  const handleUserCreated = () => setCurrentPage('users');
 
-  const handleNavigateToUserRole = (role: UserRole) => {
+  const handleNavigateToUserRole = (role: UserRole | 'all') => {
     setCurrentPage(
-      role === 'provider' ? 'providers' : role === 'admin' ? 'admins' : 'users',
+      role === 'all' || role === 'user'
+        ? 'users'
+        : role === 'provider'
+          ? 'providers'
+          : 'admins',
     );
+  };
+  const handleNavigateToAdminPage = (page: AdminPage) => {
+    if (page === 'create-product') setSelectedProduct(null);
+    if (page === 'create-provider') setSelectedProvider(null);
+    setCurrentPage(page);
   };
 
   if (!isAuthenticated) {
@@ -273,46 +286,14 @@ function App() {
   }
 
   if (user.role === 'provider') {
-    switch (currentPage) {
-      case 'profile':
-        return (
-          <Profile
-            onNavigateToUsers={() => setCurrentPage('products')}
-            onNavigateToUserRole={handleNavigateToUserRole}
-            onNavigateToCreateUser={() => setCurrentPage('products')}
-            onLogout={handleLogout}
-          />
-        );
-
-      case 'product-form':
-        return (
-          <ProductForm
-            product={selectedProduct}
-            onBack={() => setCurrentPage('products')}
-            onSaved={() => {
-              setSelectedProduct(null);
-              setCurrentPage('products');
-            }}
-          />
-        );
-
-      case 'products':
-      default:
-        return (
-          <Products
-            onCreateProduct={() => {
-              setSelectedProduct(null);
-              setCurrentPage('product-form');
-            }}
-            onEditProduct={(product) => {
-              setSelectedProduct(product);
-              setCurrentPage('product-form');
-            }}
-            onLogout={handleLogout}
-            onNavigateToProfile={() => setCurrentPage('profile')}
-          />
-        );
-    }
+    return (
+      <Profile
+        onNavigateToUsers={() => setCurrentPage('profile')}
+        onNavigateToUserRole={handleNavigateToUserRole}
+        onNavigateToCreateUser={() => setCurrentPage('profile')}
+        onLogout={handleLogout}
+      />
+    );
   }
 
   if (user.role === 'user') {
@@ -356,19 +337,67 @@ function App() {
   }
 
   switch (currentPage) {
+    case 'providers':
+      return (
+        <Providers
+          canViewProducts={canViewProducts}
+          onLogout={handleLogout}
+          onNavigateToProfile={() => setCurrentPage('profile')}
+          onNavigateToRolePermissions={() =>
+            setCurrentPage('role-permissions')
+          }
+          onNavigateToProducts={() => setCurrentPage('products')}
+          onNavigateToUserRole={handleNavigateToUserRole}
+          onNavigateToPage={handleNavigateToAdminPage}
+          onEditProvider={(provider) => {
+            setSelectedProvider(provider);
+            setCurrentPage('edit-provider');
+          }}
+        />
+      );
+
     case 'create-user':
       return (
         <CreateUser
+          key="new-client"
           onBack={() => setCurrentPage('users')}
           onUserCreated={handleUserCreated}
           onNavigateToProfile={() => setCurrentPage('profile')}
           onNavigateToUsers={() => setCurrentPage('users')}
           onNavigateToUserRole={handleNavigateToUserRole}
           onNavigateToProducts={() => setCurrentPage('products')}
+          onNavigateToPage={handleNavigateToAdminPage}
           onNavigateToRolePermissions={() =>
             setCurrentPage('role-permissions')
           }
           canViewProducts={canViewProducts}
+          onLogout={handleLogout}
+        />
+      );
+
+    case 'create-provider':
+      return (
+        <ProviderForm
+          provider={null}
+          onBack={() => setCurrentPage('providers')}
+          onSaved={() => setCurrentPage('providers')}
+          canViewProducts={canViewProducts}
+          onNavigateToPage={handleNavigateToAdminPage}
+          onLogout={handleLogout}
+        />
+      );
+
+    case 'edit-provider':
+      return (
+        <ProviderForm
+          provider={selectedProvider}
+          onBack={() => setCurrentPage('providers')}
+          onSaved={() => {
+            setSelectedProvider(null);
+            setCurrentPage('providers');
+          }}
+          canViewProducts={canViewProducts}
+          onNavigateToPage={handleNavigateToAdminPage}
           onLogout={handleLogout}
         />
       );
@@ -380,6 +409,7 @@ function App() {
           onNavigateToUserRole={handleNavigateToUserRole}
           onNavigateToCreateUser={() => setCurrentPage('create-user')}
           onNavigateToProducts={() => setCurrentPage('products')}
+          onNavigateToPage={handleNavigateToAdminPage}
           onNavigateToRolePermissions={() =>
             setCurrentPage('role-permissions')
           }
@@ -394,39 +424,39 @@ function App() {
           onNavigateToUsers={() => setCurrentPage('users')}
           onNavigateToUserRole={handleNavigateToUserRole}
           onNavigateToProducts={() => setCurrentPage('products')}
+          onNavigateToPage={handleNavigateToAdminPage}
           onNavigateToProfile={() => setCurrentPage('profile')}
           canViewProducts={canViewProducts}
           onLogout={handleLogout}
         />
       );
 
-    case 'products':
-      if (!canViewProducts) {
-        return (
-          <Users
-            onLogout={handleLogout}
-            onNavigateToProfile={() => setCurrentPage('profile')}
-            onNavigateToRolePermissions={() =>
-              setCurrentPage('role-permissions')
-            }
-            onNavigateToProducts={() => setCurrentPage('products')}
-            onNavigateToUserRole={handleNavigateToUserRole}
-            userRole="user"
-            canViewProducts={canViewProducts}
-            permissions={permissions}
-          />
-        );
-      }
+    case 'create-product':
+      return (
+        <ProductForm
+          product={null}
+          onBack={() => setCurrentPage('products')}
+          onSaved={() => setCurrentPage('products')}
+          adminNavigation={{
+            canViewProducts,
+            onNavigateToUsers: () => setCurrentPage('users'),
+            onNavigateToRolePermissions: () => setCurrentPage('role-permissions'),
+            onNavigateToProfile: () => setCurrentPage('profile'),
+            onLogout: handleLogout,
+            onNavigateToUserRole: handleNavigateToUserRole,
+            onNavigateToPage: handleNavigateToAdminPage,
+          }}
+        />
+      );
 
+    case 'products':
       return (
         <Products
           onCreateProduct={() => {
-            if (permissions['products.create'] !== true) return;
             setSelectedProduct(null);
-            setCurrentPage('product-form');
+            setCurrentPage('create-product');
           }}
           onEditProduct={(product) => {
-            if (permissions['products.edit'] !== true) return;
             setSelectedProduct(product);
             setCurrentPage('product-form');
           }}
@@ -434,8 +464,10 @@ function App() {
           onNavigateToProfile={() => setCurrentPage('profile')}
           adminNavigation={{
             canViewProducts,
+            readOnlyCatalog: true,
             onNavigateToUsers: () => setCurrentPage('users'),
             onNavigateToUserRole: handleNavigateToUserRole,
+            onNavigateToPage: handleNavigateToAdminPage,
             onNavigateToRolePermissions: () =>
               setCurrentPage('role-permissions'),
           }}
@@ -443,31 +475,6 @@ function App() {
       );
 
     case 'product-form':
-      if (
-        !canViewProducts ||
-        (selectedProduct === null &&
-          permissions['products.create'] !== true) ||
-        (selectedProduct !== null &&
-          permissions['products.edit'] !== true)
-      ) {
-        setCurrentPage('users');
-
-        return (
-          <Users
-            onLogout={handleLogout}
-            onNavigateToProfile={() => setCurrentPage('profile')}
-            onNavigateToRolePermissions={() =>
-              setCurrentPage('role-permissions')
-            }
-            onNavigateToProducts={() => setCurrentPage('products')}
-            onNavigateToUserRole={handleNavigateToUserRole}
-            userRole="user"
-            canViewProducts={canViewProducts}
-            permissions={permissions}
-          />
-        );
-      }
-
       return (
         <ProductForm
           product={selectedProduct}
@@ -487,12 +494,12 @@ function App() {
             onNavigateToProfile: () => setCurrentPage('profile'),
             onLogout: handleLogout,
             onNavigateToUserRole: handleNavigateToUserRole,
+            onNavigateToPage: handleNavigateToAdminPage,
           }}
         />
       );
 
     case 'users':
-    case 'providers':
     case 'admins':
     default:
       return (
@@ -504,13 +511,8 @@ function App() {
           }
           onNavigateToProducts={() => setCurrentPage('products')}
           onNavigateToUserRole={handleNavigateToUserRole}
-          userRole={
-            currentPage === 'providers'
-              ? 'provider'
-              : currentPage === 'admins'
-                ? 'admin'
-                : 'user'
-          }
+          onNavigateToPage={handleNavigateToAdminPage}
+          userRole={currentPage === 'admins' ? 'admin' : 'all'}
           canViewProducts={canViewProducts}
           permissions={permissions}
         />
