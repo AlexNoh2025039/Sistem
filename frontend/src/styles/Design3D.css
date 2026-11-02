@@ -1,0 +1,434 @@
+
+/* Superficies y profundidad */
+.login-card,
+.register-card,
+.users-form-card,
+.users-table-card {
+  position: relative;
+  border-color: rgba(226, 197, 182, 0.17);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.055), transparent 42%),
+    linear-gradient(145deg, #303c4b 0%, #252f3c 65%, #202936 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    0 18px 38px rgba(0, 0, 0, 0.22);
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
+}
+
+.login-card,
+.register-card {
+  border-radius: 24px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 26px 65px rgba(0, 0, 0, 0.36),
+    0 0 45px rgba(75, 67, 84, 0.12);
+}
+
+.login-card::before,
+.register-card::before,
+.users-form-card::before,
+.users-table-card::before {
+  position: absolute;
+  top: 0;
+  left: 12%;
+  width: 76%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(226, 197, 182, 0.38),
+    transparent
+  );
+  content: "";
+  pointer-events: none;
+}
+
+.login-card:hover,
+.register-card:hover {
+  border-color: rgba(226, 197, 182, 0.27);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 30px 75px rgba(0, 0, 0, 0.4),
+    0 0 48px rgba(75, 67, 84, 0.16);
+}
+
+/* Campos */
+.login-field input,
+.login-password,
+.register-field input,
+.users-form-field input,
+.users-form-field select,
+.users-table td select {
+  border-color: rgba(195, 202, 211, 0.19);
+  background: linear-gradient(180deg, #1b232e, #222c39);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.025) inset,
+    0 3px 8px rgba(0, 0, 0, 0.12) inset;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.login-field input:focus,
+.login-password:focus-within,
+.register-field input:focus,
+.users-form-field input:focus,
+.users-form-field select:focus,
+.users-table td select:focus {
+  border-color: #b99b89;
+  background: #222c39;
+  box-shadow:
+    0 0 0 3px rgba(185, 155, 137, 0.13),
+    0 0 20px rgba(185, 155, 137, 0.055);
+}
+
+/* Botones con relieve */
+.login-submit,
+.register-submit,
+.users-create-button {
+  border: 1px solid rgba(239, 213, 199, 0.24);
+  background: linear-gradient(180deg, #a0806e, #785c50);
+  box-shadow:
+    0 4px 0 #493a34,
+    0 9px 20px rgba(0, 0, 0, 0.23),
+    0 1px 0 rgba(255, 255, 255, 0.2) inset;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.login-submit:hover:not(:disabled),
+.register-submit:hover:not(:disabled),
+.users-create-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, #b08d79, #896959);
+  box-shadow:
+    0 6px 0 #493a34,
+    0 14px 25px rgba(0, 0, 0, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.22) inset;
+}
+
+.login-submit:active:not(:disabled),
+.register-submit:active:not(:disabled),
+.users-create-button:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    0 1px 0 #493a34,
+    0 3px 8px rgba(0, 0, 0, 0.22);
+}
+
+/* Panel de administración */
+.users-topbar {
+  background: rgba(31, 39, 50, 0.86);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+
+.users-avatar {
+  background: linear-gradient(145deg, #927b91, #4b4354);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.18) inset;
+}
+
+.users-form-card,
+.users-table-card {
+  border-radius: 16px;
+}
+
+.users-table tbody tr:hover {
+  background: rgba(226, 197, 182, 0.045);
+}
+
+.users-table th {
+  background: rgba(17, 23, 31, 0.24);
+}
+
+.users-role {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset;
+}
+
+/* Accesibilidad y movimiento */
+@media (prefers-reduced-motion: reduce) {
+  .login-card,
+  .register-card,
+  .users-form-card,
+  .users-table-card,
+  .login-submit,
+  .register-submit,
+  .users-create-button {
+    transition: none;
+  }
+}
+
+/* Mantiene la misma paleta y profundidad en las vistas de la aplicación. */
+.users-page,
+.role-permissions-page {
+  color: var(--color-text);
+  background:
+    radial-gradient(
+      ellipse at 85% 0%,
+      rgba(75, 67, 84, 0.16),
+      transparent 35%
+    ),
+    var(--color-background);
+}
+
+.users-page {
+  --users-bg: var(--color-background);
+  --users-sidebar: #202936;
+  --users-card: var(--color-surface);
+  --users-card-hover: var(--color-surface-raised);
+  --users-border: var(--color-border);
+  --users-border-light: var(--color-border-strong);
+  --users-text: var(--color-text);
+  --users-text-muted: var(--color-text-secondary);
+  --users-text-subtle: var(--color-text-muted);
+  --users-accent: var(--color-accent);
+  --users-accent-hover: var(--color-accent-hover);
+  --users-accent-soft: var(--color-accent-soft);
+}
+
+.users-sidebar {
+  background: linear-gradient(180deg, #202936, #171d26);
+  border-color: var(--color-border);
+}
+
+.users-topbar,
+.rp-topbar,
+.products-header {
+  border-color: var(--color-border);
+  background: rgba(31, 39, 50, 0.86);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+
+.users-table-card,
+.profile-overview-card,
+.profile-settings-card,
+.profile-photo-form,
+.rp-table-card,
+.rp-info,
+.rp-loading,
+.rp-empty,
+.rp-individual-search-card,
+.products-catalog,
+.products-stat-card,
+.product-card,
+.order-card,
+.product-form-section,
+.public-products__card {
+  border-color: rgba(226, 197, 182, 0.17);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent 48%),
+    linear-gradient(145deg, #303c4b 0%, #252f3c 65%, #202936 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.055) inset,
+    0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+.users-table-card,
+.rp-table-card,
+.products-catalog {
+  border-radius: var(--radius-medium);
+}
+
+.users-primary-button,
+.rp-primary-button,
+.products-primary-button,
+.product-form-submit {
+  border-color: rgba(239, 213, 199, 0.24);
+  background: linear-gradient(180deg, #a0806e, #785c50);
+  box-shadow:
+    0 4px 0 #493a34,
+    0 9px 20px rgba(0, 0, 0, 0.23),
+    0 1px 0 rgba(255, 255, 255, 0.2) inset;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.users-primary-button:hover:not(:disabled),
+.rp-primary-button:hover:not(:disabled),
+.products-primary-button:hover:not(:disabled),
+.product-form-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, #b08d79, #896959);
+  box-shadow:
+    0 6px 0 #493a34,
+    0 14px 25px rgba(0, 0, 0, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.22) inset;
+}
+
+.users-primary-button:active:not(:disabled),
+.rp-primary-button:active:not(:disabled),
+.products-primary-button:active:not(:disabled),
+.product-form-submit:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    0 1px 0 #493a34,
+    0 3px 8px rgba(0, 0, 0, 0.22);
+}
+
+.rp-secondary-button,
+.users-secondary-button,
+.users-refresh,
+.products-nav-button,
+.product-form-back,
+.product-form-cancel {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+
+.rp-secondary-button:hover:not(:disabled),
+.users-secondary-button:hover:not(:disabled),
+.users-refresh:hover:not(:disabled),
+.products-nav-button:hover:not(:disabled),
+.product-form-back:hover:not(:disabled),
+.product-form-cancel:hover:not(:disabled) {
+  border-color: rgba(226, 197, 182, 0.3);
+  background: var(--color-surface-hover);
+}
+
+.users-search,
+.rp-search-input-wrapper,
+.profile-field input,
+.profile-file-input,
+.product-form-field input,
+.product-form-field select,
+.product-form-field textarea,
+.users-role-actions select,
+.users-table select {
+  border-color: var(--color-border-strong);
+  background: linear-gradient(180deg, #1b232e, #222c39);
+  color: var(--color-text);
+}
+
+.users-search:focus-within,
+.rp-search-input-wrapper:focus-within,
+.profile-field input:focus,
+.profile-file-input:focus,
+.product-form-field input:focus,
+.product-form-field select:focus,
+.product-form-field textarea:focus {
+  border-color: var(--color-accent-light);
+  box-shadow: var(--shadow-focus);
+}
+
+.users-nav-item.active,
+.profile-tab.active {
+  color: var(--color-accent-light);
+}
+
+.profile-tab.active {
+  background: rgba(226, 197, 182, 0.055);
+}
+
+.profile-role-badge,
+.profile-password-hint {
+  border-color: rgba(226, 197, 182, 0.2);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-light);
+}
+
+.profile-password-hint > span {
+  border-color: rgba(226, 197, 182, 0.25);
+  color: var(--color-accent-light);
+}
+
+.profile-file-input::file-selector-button {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+
+.profile-file-input::file-selector-button:hover {
+  background: var(--color-surface-hover);
+}
+
+.profile-selected-file {
+  color: var(--color-accent-light);
+}
+
+.rp-avatar,
+.users-brand-mark,
+.users-avatar,
+.users-table-avatar,
+.profile-overview-avatar,
+.profile-photo-preview {
+  border-color: var(--color-border-strong);
+  background: linear-gradient(145deg, #a08070, #4b4354);
+  color: #f5e9e2;
+}
+
+.rp-eyebrow,
+.rp-search-icon,
+.rp-search-input-wrapper > span,
+.rp-group-row td,
+.users-section-eyebrow,
+.users-id {
+  color: var(--color-accent-light);
+}
+
+.rp-search-icon {
+  background: var(--color-accent-soft);
+}
+
+.rp-table th,
+.rp-group-row td {
+  background: rgba(17, 23, 31, 0.24);
+}
+
+.rp-table th,
+.rp-table td,
+.rp-table-card,
+.rp-table td {
+  border-color: var(--color-border);
+}
+
+.rp-search-input-wrapper input,
+.rp-breadcrumb strong {
+  color: var(--color-text);
+}
+
+.rp-search-input-wrapper input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.rp-checkbox:focus-visible + .rp-checkbox-mark {
+  outline-color: var(--color-accent-light);
+}
+
+.users-primary-button,
+.rp-primary-button,
+.products-primary-button,
+.product-form-submit {
+  color: #ffffff;
+}
+
+.product-card,
+.public-products__card {
+  overflow: hidden;
+}
+
+.public-products__card:hover,
+.product-card:hover,
+.products-stat-card:hover {
+  border-color: rgba(226, 197, 182, 0.3);
+  box-shadow: var(--shadow-card-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .users-primary-button,
+  .rp-primary-button,
+  .products-primary-button,
+  .product-form-submit {
+    transition: none;
+  }
+}
