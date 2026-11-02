@@ -69,7 +69,6 @@ function Users({
   const [createUsername, setCreateUsername] = useState('');
   const [createEmail, setCreateEmail] = useState('');
   const [createPassword, setCreatePassword] = useState('');
-  const [createRole, setCreateRole] = useState<UserRole>('user');
   const [creatingUser, setCreatingUser] = useState(false);
   const [createError, setCreateError] = useState('');
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -452,13 +451,12 @@ function Users({
     setMessage('');
 
     try {
-      await createAdminUser(username, correo, createPassword, token, createRole);
+      await createAdminUser(username, correo, createPassword, token, userRole);
 
       setShowCreateModal(false);
       setCreateUsername('');
       setCreateEmail('');
       setCreatePassword('');
-      setCreateRole(userRole);
       setMessage(`El usuario "${username}" fue creado correctamente.`);
 
       if (canViewUsers) {
@@ -580,7 +578,6 @@ function Users({
                     type="button"
                     onClick={() => {
                       setCreateError('');
-                      setCreateRole(userRole);
                       setShowCreateModal(true);
                     }}
                   >
@@ -960,21 +957,6 @@ function Users({
                   disabled={creatingUser}
                 />
                 <small>Usá al menos 8 caracteres para la contraseña.</small>
-              </label>
-
-              <label className="users-modal-field">
-                <span>Rol y permisos</span>
-                <select
-                  value={createRole}
-                  onChange={(event) =>
-                    setCreateRole(event.target.value as UserRole)
-                  }
-                  disabled={creatingUser}
-                >
-                  <option value="user">Usuario</option>
-                  <option value="provider">Proveedor</option>
-                  <option value="admin">Administrador</option>
-                </select>
               </label>
 
               <div className="users-modal-actions">
