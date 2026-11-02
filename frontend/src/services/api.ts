@@ -1,7 +1,8 @@
+const API_URL = (
+  import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+).replace(/\/$/, '')
 
-const API_URL = 'http://localhost:3000/api'
-const SERVER_URL = 'http://localhost:3000'
-
+const SERVER_URL = API_URL.replace(/\/api$/, '')
 export type UserRole = 'admin' | 'user' | 'provider'
 
 export interface RolePermission {
